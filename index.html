@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#071b4d">
+  <meta name="description" content="Gestão de oportunidades B2B da Astrion Assessoria.">
+  <title>Astrion | Oportunidades B2B</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="auth-screen" class="auth-screen hidden" aria-live="polite">
+    <section class="auth-brand">
+      <div class="brand-lockup brand-lockup--light">
+        <span class="brand-symbol" aria-hidden="true"><i></i></span>
+        <span><strong>ASTRION</strong><small>ASSESSORIA</small></span>
+      </div>
+      <div class="auth-copy">
+        <span class="eyebrow eyebrow--light">Inteligência comercial</span>
+        <h1>Oportunidades bem conduzidas viram negócios melhores.</h1>
+        <p>Centralize cadastros, próximos passos, reuniões, responsáveis e decisões em um único fluxo B2B.</p>
+      </div>
+      <div class="auth-proof">
+        <span>Pipeline organizado</span><span>Agenda integrada</span><span>Histórico rastreável</span>
+      </div>
+    </section>
+
+    <section class="auth-panel">
+      <div class="auth-card">
+        <div class="auth-card__head">
+          <span class="eyebrow">Acesso seguro</span>
+          <h2 id="auth-title">Entrar na plataforma</h2>
+          <p id="auth-subtitle">Use seu e-mail e senha cadastrados.</p>
+        </div>
+        <form id="login-form" class="stack-form">
+          <label>E-mail<input id="login-email" type="email" autocomplete="email" required placeholder="seu@email.com"></label>
+          <label>Senha<input id="login-password" type="password" autocomplete="current-password" minlength="6" required placeholder="••••••••"></label>
+          <button class="btn btn--primary btn--wide" type="submit">Entrar</button>
+        </form>
+        <form id="signup-form" class="stack-form hidden">
+          <label>Nome completo<input id="signup-name" type="text" autocomplete="name" required placeholder="Seu nome"></label>
+          <label>E-mail<input id="signup-email" type="email" autocomplete="email" required placeholder="seu@email.com"></label>
+          <label>Senha<input id="signup-password" type="password" autocomplete="new-password" minlength="6" required placeholder="Mínimo de 6 caracteres"></label>
+          <button class="btn btn--primary btn--wide" type="submit">Criar meu acesso</button>
+        </form>
+        <button id="toggle-auth-mode" class="text-button" type="button">Ainda não tenho acesso</button>
+        <p class="auth-note">Novos acessos entram como cadastradores e não visualizam informações de outras oportunidades.</p>
+      </div>
+    </section>
+  </div>
+
+  <div id="app" class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar__head">
+        <a class="brand-lockup brand-lockup--light" href="#dashboard" aria-label="Astrion - início">
+          <span class="brand-symbol" aria-hidden="true"><i></i></span>
+          <span><strong>ASTRION</strong><small>GESTÃO B2B</small></span>
+        </a>
+        <button id="close-menu" class="icon-button icon-button--light mobile-only" aria-label="Fechar menu">×</button>
+      </div>
+
+      <nav class="main-nav" aria-label="Navegação principal">
+        <button class="nav-item active manager-only" data-view="dashboard"><span class="nav-icon">01</span><span>Visão geral</span></button>
+        <button class="nav-item manager-only" data-view="pipeline"><span class="nav-icon">02</span><span>Pipeline</span></button>
+        <button class="nav-item manager-only" data-view="agenda"><span class="nav-icon">03</span><span>Agenda</span></button>
+        <button class="nav-item" data-view="opportunities"><span class="nav-icon">04</span><span>Oportunidades</span></button>
+        <button class="nav-item admin-only" data-view="team"><span class="nav-icon">05</span><span>Equipe e acessos</span></button>
+      </nav>
+
+      <div class="sidebar__bottom">
+        <div class="mode-card" id="mode-card">
+          <span class="status-dot"></span>
+          <div><strong id="mode-title">Modo demonstração</strong><small id="mode-text">Dados salvos neste navegador</small></div>
+        </div>
+        <div class="user-card">
+          <span id="user-avatar" class="avatar">WM</span>
+          <div><strong id="user-name">Wellington Mendes</strong><small id="user-role">Administrador</small></div>
+          <button id="logout-button" class="icon-button icon-button--light hidden" title="Sair" aria-label="Sair">↗</button>
+        </div>
+      </div>
+    </aside>
+
+    <div id="menu-overlay" class="menu-overlay"></div>
+
+    <main class="main-area">
+      <header class="topbar">
+        <button id="open-menu" class="icon-button mobile-only" aria-label="Abrir menu">☰</button>
+        <div class="topbar__title">
+          <span class="breadcrumb">Astrion / Comercial</span>
+          <h1 id="page-title">Visão geral</h1>
+        </div>
+        <div class="topbar__actions">
+          <button id="export-button" class="btn btn--ghost manager-only"><span>Exportar</span></button>
+          <button class="btn btn--primary open-opportunity"><span>＋</span> Nova oportunidade</button>
+        </div>
+      </header>
+
+      <div id="demo-banner" class="demo-banner">
+        <div><strong>Você está conhecendo a ferramenta.</strong> As alterações ficam apenas neste navegador até a conexão da base compartilhada.</div>
+        <button id="open-setup" class="btn btn--small btn--white">Como conectar</button>
+      </div>
+
+      <section id="view-dashboard" class="view active manager-only">
+        <div class="section-intro">
+          <div><span class="eyebrow">Panorama comercial</span><h2>Decisões e próximos passos em um só lugar.</h2></div>
+          <div class="date-chip" id="today-chip"></div>
+        </div>
+
+        <div class="kpi-grid">
+          <article class="kpi-card kpi-card--primary"><span class="kpi-label">Pipeline potencial</span><strong id="kpi-potential">R$ 0</strong><small id="kpi-potential-detail">0 oportunidades ativas</small><span class="kpi-mark">R$</span></article>
+          <article class="kpi-card"><span class="kpi-label">Pipeline ponderado</span><strong id="kpi-weighted">R$ 0</strong><small>Valor × probabilidade</small><span class="kpi-line"></span></article>
+          <article class="kpi-card"><span class="kpi-label">Próximas ações</span><strong id="kpi-next">0</strong><small>Nos próximos 7 dias</small><span class="kpi-line kpi-line--cyan"></span></article>
+          <article class="kpi-card" id="overdue-card"><span class="kpi-label">Atenção necessária</span><strong id="kpi-overdue">0</strong><small>Ações atrasadas</small><span class="kpi-line kpi-line--amber"></span></article>
+        </div>
+
+        <div class="dashboard-grid">
+          <article class="panel panel--wide">
+            <div class="panel__head"><div><span class="eyebrow">Funil ativo</span><h3>Distribuição por etapa</h3></div><button class="text-button go-view" data-target="pipeline">Ver pipeline →</button></div>
+            <div id="funnel-chart" class="funnel-chart"></div>
+          </article>
+          <article class="panel">
+            <div class="panel__head"><div><span class="eyebrow">Prioridade</span><h3>Saúde da carteira</h3></div></div>
+            <div id="health-chart" class="health-chart"></div>
+          </article>
+          <article class="panel panel--wide">
+            <div class="panel__head"><div><span class="eyebrow">Ritmo comercial</span><h3>Próximas ações</h3></div><button class="text-button go-view" data-target="agenda">Abrir agenda →</button></div>
+            <div id="next-actions" class="action-list"></div>
+          </article>
+          <article class="panel">
+            <div class="panel__head"><div><span class="eyebrow">Qualidade</span><h3>Alertas do pipeline</h3></div></div>
+            <div id="pipeline-alerts" class="alert-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="view-pipeline" class="view manager-only">
+        <div class="toolbar">
+          <div class="search-box"><span>⌕</span><input class="global-search" type="search" placeholder="Buscar empresa, contato ou oportunidade"></div>
+          <select class="filter-owner" aria-label="Filtrar por responsável"><option value="">Todos os responsáveis</option></select>
+          <select class="filter-priority" aria-label="Filtrar por prioridade"><option value="">Todas as prioridades</option><option>Alta</option><option>Média</option><option>Baixa</option></select>
+          <button class="btn btn--ghost clear-filters">Limpar filtros</button>
+        </div>
+        <div class="pipeline-summary" id="pipeline-summary"></div>
+        <div id="kanban" class="kanban" aria-label="Pipeline de oportunidades"></div>
+      </section>
+
+      <section id="view-agenda" class="view manager-only">
+        <div class="agenda-head">
+          <div><span class="eyebrow">Compromissos</span><h2>Agenda comercial</h2><p>Ações, reuniões e previsões de fechamento reunidas por data.</p></div>
+          <div class="calendar-nav"><button id="calendar-prev" class="icon-button">←</button><button id="calendar-today" class="btn btn--ghost">Hoje</button><button id="calendar-next" class="icon-button">→</button></div>
+        </div>
+        <div class="agenda-layout">
+          <article class="calendar-panel"><div class="calendar-title"><strong id="calendar-month"></strong><span id="calendar-total"></span></div><div class="calendar-weekdays"><span>DOM</span><span>SEG</span><span>TER</span><span>QUA</span><span>QUI</span><span>SEX</span><span>SÁB</span></div><div id="calendar-grid" class="calendar-grid"></div></article>
+          <aside class="agenda-side"><div class="agenda-side__head"><span class="eyebrow">Recorte</span><h3 id="selected-date-title">Próximos compromissos</h3></div><div id="agenda-list" class="agenda-list"></div></aside>
+        </div>
+      </section>
+
+      <section id="view-opportunities" class="view">
+        <div class="toolbar">
+          <div class="search-box"><span>⌕</span><input class="global-search" type="search" placeholder="Buscar empresa, contato ou oportunidade"></div>
+          <select id="table-status-filter" class="manager-only" aria-label="Filtrar por status"><option value="">Todos os status</option></select>
+          <select class="filter-priority manager-only" aria-label="Filtrar por prioridade"><option value="">Todas as prioridades</option><option>Alta</option><option>Média</option><option>Baixa</option></select>
+          <button class="btn btn--ghost clear-filters manager-only">Limpar filtros</button>
+        </div>
+        <div class="table-card">
+          <div class="table-card__head"><div><span class="eyebrow">Base consolidada</span><h2 id="opportunities-title">Todas as oportunidades</h2></div><span id="opportunity-count" class="count-badge">0 registros</span></div>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Empresa / oportunidade</th><th>Status</th><th>Prioridade</th><th>Potencial</th><th>Responsável</th><th>Próxima ação</th><th></th></tr></thead>
+              <tbody id="opportunity-table"></tbody>
+            </table>
+          </div>
+          <div id="mobile-opportunity-list" class="mobile-cards"></div>
+        </div>
+      </section>
+
+      <section id="view-team" class="view admin-only">
+        <div class="section-intro"><div><span class="eyebrow">Governança</span><h2>Equipe e níveis de acesso</h2><p>Defina quem administra, conduz ou apenas cadastra oportunidades.</p></div></div>
+        <div class="role-grid"><article><strong>Administrador</strong><p>Visualiza tudo, gerencia a equipe, altera e exclui registros.</p></article><article><strong>Gestor comercial</strong><p>Conduz oportunidades, agenda atividades e atualiza o pipeline.</p></article><article><strong>Cadastrador</strong><p>Registra novas oportunidades e acompanha apenas as próprias indicações.</p></article></div>
+        <div class="table-card"><div class="table-card__head"><div><span class="eyebrow">Usuários</span><h2>Acessos cadastrados</h2></div><span id="team-count" class="count-badge">0 usuários</span></div><div class="table-scroll"><table><thead><tr><th>Usuário</th><th>E-mail</th><th>Nível</th><th>Situação</th><th></th></tr></thead><tbody id="team-table"></tbody></table></div></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="opportunity-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="opportunity-modal-title">
+    <div class="modal__backdrop" data-close="opportunity-modal"></div>
+    <section class="modal__panel modal__panel--large">
+      <header class="modal__head"><div><span class="eyebrow">Entrada comercial</span><h2 id="opportunity-modal-title">Nova oportunidade B2B</h2><p>Registre o contexto necessário para uma qualificação consistente.</p></div><button class="icon-button" data-close="opportunity-modal" aria-label="Fechar">×</button></header>
+      <form id="opportunity-form">
+        <input type="hidden" id="opportunity-id">
+        <div class="form-section"><div class="form-section__title"><span>01</span><div><strong>Empresa e origem</strong><small>Quem é a oportunidade e como ela chegou.</small></div></div><div class="form-grid">
+          <label class="span-2">Empresa ou grupo *<input id="company" name="company" required placeholder="Nome da empresa"></label>
+          <label>CNPJ<input id="cnpj" name="cnpj" inputmode="numeric" placeholder="00.000.000/0000-00"></label>
+          <label>Site<input id="website" name="website" type="url" placeholder="https://"></label>
+          <label>Segmento<select id="segment" name="segment"><option value="">Selecione</option><option>Serviços financeiros</option><option>Varejo</option><option>Saúde</option><option>Educação</option><option>Automotivo</option><option>Imobiliário</option><option>Seguros</option><option>Tecnologia</option><option>Outro</option></select></label>
+          <label>Modelo<select id="channel" name="channel"><option>B2B</option><option>B2B2C</option><option>Parceria de distribuição</option><option>Indicação</option></select></label>
+          <label>Origem / indicador<input id="source" name="source" placeholder="Quem indicou ou canal de origem"></label>
+          <label>Base potencial de clientes<input id="client-base" name="client_base" type="number" min="0" step="1" placeholder="Ex.: 100000"></label>
+        </div></div>
+        <div class="form-section"><div class="form-section__title"><span>02</span><div><strong>Contato principal</strong><small>Quem participa e como seguir a conversa.</small></div></div><div class="form-grid">
+          <label>Nome do contato<input id="contact-name" name="contact_name" placeholder="Nome completo"></label><label>Cargo<input id="contact-role" name="contact_role" placeholder="Ex.: Diretor Comercial"></label><label>E-mail<input id="contact-email" name="contact_email" type="email" placeholder="email@empresa.com"></label><label>Telefone / WhatsApp<input id="contact-phone" name="contact_phone" placeholder="+55 (11) 00000-0000"></label>
+        </div></div>
+        <div class="form-section"><div class="form-section__title"><span>03</span><div><strong>Oportunidade</strong><small>Necessidade, solução e dimensão econômica.</small></div></div><div class="form-grid">
+          <label class="span-2">Resumo da oportunidade *<textarea id="summary" name="summary" required rows="3" placeholder="Descreva o contexto, desafio e objetivo comercial"></textarea></label>
+          <fieldset class="span-2 interest-field"><legend>Soluções de interesse</legend><div class="chip-options"><label><input type="checkbox" name="interests" value="Consórcios"><span>Consórcios</span></label><label><input type="checkbox" name="interests" value="Seguros"><span>Seguros</span></label><label><input type="checkbox" name="interests" value="Resseguros"><span>Resseguros</span></label><label><input type="checkbox" name="interests" value="BPO"><span>BPO</span></label><label><input type="checkbox" name="interests" value="Tecnologia"><span>Tecnologia</span></label><label><input type="checkbox" name="interests" value="Outra"><span>Outra</span></label></div></fieldset>
+          <label class="span-2">Particularidades, restrições e contexto<textarea id="particularities" name="particularities" rows="3" placeholder="Exclusividade, integrações, compliance, prazos, participantes, concorrentes..."></textarea></label>
+          <label>Potencial de receita (R$)<input id="potential-revenue" name="potential_revenue" type="number" min="0" step="1000" placeholder="0"></label><label>Produção / vendas estimadas (R$)<input id="expected-sales" name="expected_sales" type="number" min="0" step="1000" placeholder="0"></label>
+        </div></div>
+        <div class="form-section manager-fields"><div class="form-section__title"><span>04</span><div><strong>Condução e agenda</strong><small>Responsável, etapa e próximo compromisso.</small></div></div><div class="form-grid">
+          <label>Status<select id="status" name="status"></select></label><label>Prioridade<select id="priority" name="priority"><option>Alta</option><option selected>Média</option><option>Baixa</option></select></label><label>Probabilidade<input id="probability" name="probability" type="number" min="0" max="100" step="5" value="10"><span class="input-suffix">%</span></label><label>Responsável<select id="owner-id" name="owner_id"><option value="">A definir</option></select></label>
+          <label class="span-2">Próxima ação *<input id="next-action" name="next_action" placeholder="Ex.: Agendar reunião de diagnóstico"></label><label>Prazo da próxima ação *<input id="next-action-date" name="next_action_date" type="datetime-local"></label><label>Reunião agendada<input id="meeting-date" name="meeting_date" type="datetime-local"></label><label>Previsão de fechamento<input id="expected-close-date" name="expected_close_date" type="date"></label><label>Link de documento / proposta<input id="document-link" name="document_link" type="url" placeholder="https://"></label>
+        </div></div>
+        <footer class="modal__footer"><button type="button" class="btn btn--ghost" data-close="opportunity-modal">Cancelar</button><button type="submit" class="btn btn--primary" id="save-opportunity">Salvar oportunidade</button></footer>
+      </form>
+    </section>
+  </div>
+
+  <div id="detail-drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="detail-title"><div class="drawer__backdrop" data-close="detail-drawer"></div><aside class="drawer__panel"><header class="drawer__head"><div><span id="detail-eyebrow" class="eyebrow">Oportunidade</span><h2 id="detail-title">Empresa</h2></div><button class="icon-button" data-close="detail-drawer" aria-label="Fechar">×</button></header><div id="detail-content" class="drawer__content"></div></aside></div>
+
+  <div id="setup-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="setup-title"><div class="modal__backdrop" data-close="setup-modal"></div><section class="modal__panel"><header class="modal__head"><div><span class="eyebrow">Publicação</span><h2 id="setup-title">Conectar a base compartilhada</h2></div><button class="icon-button" data-close="setup-modal">×</button></header><div class="setup-steps"><article><span>1</span><div><strong>Crie o projeto no Supabase</strong><p>Use uma conta da Astrion e guarde a região e a senha do banco.</p></div></article><article><span>2</span><div><strong>Execute o arquivo de estrutura</strong><p>Abra o SQL Editor e rode o conteúdo de <code>supabase-schema.sql</code>.</p></div></article><article><span>3</span><div><strong>Informe a URL e a chave pública</strong><p>Preencha o arquivo <code>config.js</code>. Nunca use a chave secreta no GitHub.</p></div></article><article><span>4</span><div><strong>Publique no GitHub Pages</strong><p>Envie os arquivos e ative Pages apontando para a raiz da branch principal.</p></div></article></div><div class="security-note"><strong>Segurança aplicada</strong><p>O banco usa autenticação e regras por perfil. Cadastradores não enxergam oportunidades de outras pessoas; gestores e administradores operam o pipeline.</p></div></section></div>
+
+  <div id="confirm-modal" class="modal modal--compact"><div class="modal__backdrop" data-close="confirm-modal"></div><section class="modal__panel"><header class="modal__head"><div><span class="eyebrow">Confirmação</span><h2 id="confirm-title">Confirmar ação</h2></div></header><p id="confirm-message"></p><footer class="modal__footer"><button id="confirm-cancel" class="btn btn--ghost">Cancelar</button><button id="confirm-action" class="btn btn--danger">Confirmar</button></footer></section></div>
+
+  <div id="toast-region" class="toast-region" aria-live="polite"></div>
+  <script src="config.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
