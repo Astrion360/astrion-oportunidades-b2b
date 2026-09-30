@@ -120,8 +120,33 @@ async function initialize() {
       const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
       state.supabase = createClient(CONFIG.supabaseUrl, CONFIG.supabasePublishableKey);
       state.online = true;
+
+      state.supabase.auth.onAuthStateChange((event) => {
+        if (event === "PASSWORD_RECOVERY") {
+          state.authMode = "recovery";
+          showAuth();
+          renderAuthMode();
+        }
+      });
+
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const queryParams = new URLSearchParams(window.location.search);
+      const recoveryReturn = hashParams.get("type") === "recovery" || queryParams.get("type") === "recovery";
       const { data: { session } } = await state.supabase.auth.getSession();
-      if (!session) return showAuth();
+
+      if (recoveryReturn) {
+        state.authMode = "recovery";
+        showAuth();
+        renderAuthMode();
+        return;
+      }
+
+      if (!session) {
+        state.authMode = "login";
+        showAuth();
+        renderAuthMode();
+        return;
+      }
       await hydrateOnline(session.user);
     } catch (error) {
       console.error(error);
@@ -156,6 +181,7 @@ async function refreshOnlineData() {
 function showAuth() {
   $("#app").classList.add("hidden");
   $("#auth-screen").classList.remove("hidden");
+  renderAuthMode();
 }
 
 function startApp() {
@@ -636,8 +662,10 @@ function bindEvents() {
   $("#close-menu").addEventListener("click", closeMobileMenu);
   $("#menu-overlay").addEventListener("click", closeMobileMenu);
   $("#toggle-auth-mode").addEventListener("click", toggleAuthMode);
+  $("#forgot-password").addEventListener("click", handleForgotPassword);
   $("#login-form").addEventListener("submit", handleLogin);
   $("#signup-form").addEventListener("submit", handleSignup);
+  $("#recovery-form").addEventListener("submit", handleRecoveryPassword);
   $("#logout-button").addEventListener("click", handleLogout);
 }
 
@@ -666,14 +694,35 @@ function exportCSV() {
   toast("Relatório exportado em CSV.", "success");
 }
 
-function toggleAuthMode() {
-  state.authMode = state.authMode === "login" ? "signup" : "login";
+function renderAuthMode() {
   const signup = state.authMode === "signup";
-  $("#login-form").classList.toggle("hidden", signup);
+  const recovery = state.authMode === "recovery";
+  const login = !signup && !recovery;
+
+  $("#login-form").classList.toggle("hidden", !login);
   $("#signup-form").classList.toggle("hidden", !signup);
-  $("#auth-title").textContent = signup ? "Criar acesso de cadastrador" : "Entrar na plataforma";
-  $("#auth-subtitle").textContent = signup ? "Cadastre-se para enviar oportunidades com segurança." : "Use seu e-mail e senha cadastrados.";
-  $("#toggle-auth-mode").textContent = signup ? "Já tenho acesso" : "Ainda não tenho acesso";
+  $("#recovery-form").classList.toggle("hidden", !recovery);
+  $("#forgot-password").classList.toggle("hidden", !login);
+  $("#toggle-auth-mode").classList.toggle("hidden", false);
+
+  if (recovery) {
+    $("#auth-title").textContent = "Definir nova senha";
+    $("#auth-subtitle").textContent = "Informe uma nova senha para concluir a recuperação do acesso.";
+    $("#toggle-auth-mode").textContent = "Voltar ao login";
+  } else if (signup) {
+    $("#auth-title").textContent = "Criar acesso de cadastrador";
+    $("#auth-subtitle").textContent = "Cadastre-se para enviar oportunidades com segurança.";
+    $("#toggle-auth-mode").textContent = "Já tenho acesso";
+  } else {
+    $("#auth-title").textContent = "Entrar na plataforma";
+    $("#auth-subtitle").textContent = "Use seu e-mail e senha cadastrados.";
+    $("#toggle-auth-mode").textContent = "Ainda não tenho acesso";
+  }
+}
+
+function toggleAuthMode() {
+  state.authMode = state.authMode === "recovery" ? "login" : (state.authMode === "login" ? "signup" : "login");
+  renderAuthMode();
 }
 
 async function handleLogin(event) {
@@ -698,6 +747,57 @@ async function handleSignup(event) {
     if (error) throw error;
     if (data.session) { await hydrateOnline(data.user); startApp(); }
     else { toast("Cadastro criado. Confirme o e-mail para entrar.", "success"); toggleAuthMode(); }
+  } catch (error) { handleError(error); }
+  finally { button.disabled = false; }
+}
+
+async function handleForgotPassword() {
+  const email = $("#login-email").value.trim();
+  if (!email) {
+    toast("Informe o e-mail do usuário para redefinir a senha.", "error");
+    $("#login-email").focus();
+    return;
+  }
+
+  const button = $("#forgot-password");
+  button.disabled = true;
+  try {
+    const redirectTo = new URL(window.location.pathname, window.location.origin).href;
+    const { error } = await state.supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) throw error;
+    toast("Enviamos o link de redefinição para o e-mail informado.", "success");
+  } catch (error) { handleError(error); }
+  finally { button.disabled = false; }
+}
+
+async function handleRecoveryPassword(event) {
+  event.preventDefault();
+  const button = event.submitter;
+  const password = $("#recovery-password").value;
+  const confirmation = $("#recovery-password-confirm").value;
+
+  if (password.length < 8) {
+    toast("A nova senha deve ter pelo menos 8 caracteres.", "error");
+    return;
+  }
+  if (password !== confirmation) {
+    toast("As senhas informadas não coincidem.", "error");
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    const { error } = await state.supabase.auth.updateUser({ password });
+    if (error) throw error;
+    await state.supabase.auth.signOut();
+    history.replaceState(null, "", window.location.pathname);
+    state.currentUser = state.profile = null;
+    state.authMode = "login";
+    $("#recovery-password").value = "";
+    $("#recovery-password-confirm").value = "";
+    renderAuthMode();
+    showAuth();
+    toast("Senha alterada com sucesso. Entre com a nova senha.", "success");
   } catch (error) { handleError(error); }
   finally { button.disabled = false; }
 }
