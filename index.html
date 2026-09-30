@@ -46,6 +46,12 @@
           <label>Senha<input id="signup-password" type="password" autocomplete="new-password" minlength="6" required placeholder="Mínimo de 6 caracteres"></label>
           <button class="btn btn--primary btn--wide" type="submit">Criar meu acesso</button>
         </form>
+        <form id="recovery-form" class="stack-form hidden">
+          <label>Nova senha<input id="recovery-password" type="password" autocomplete="new-password" minlength="8" required placeholder="Mínimo de 8 caracteres"></label>
+          <label>Confirmar nova senha<input id="recovery-password-confirm" type="password" autocomplete="new-password" minlength="8" required placeholder="Repita a nova senha"></label>
+          <button class="btn btn--primary btn--wide" type="submit">Salvar nova senha</button>
+        </form>
+        <button id="forgot-password" class="text-button" type="button">Esqueci minha senha</button>
         <button id="toggle-auth-mode" class="text-button" type="button">Ainda não tenho acesso</button>
         <p class="auth-note">Novos acessos entram como cadastradores e não visualizam informações de outras oportunidades.</p>
       </div>
