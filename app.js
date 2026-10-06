@@ -544,7 +544,7 @@ function opportunityPayload() {
     client_base: optionalNumber("#client-base"), contact_name: get("#contact-name") || null,
     contact_role: get("#contact-role") || null, contact_email: get("#contact-email") || null,
     contact_phone: get("#contact-phone") || null, summary: get("#summary"), particularities: get("#particularities") || null,
-    interests: $('input[name="interests"]:checked').map(input => input.value),
+    interests: Array.from(document.getElementsByName("interests")).filter(input => input.checked).map(input => input.value),
     potential_revenue: optionalNumber("#potential-revenue"), expected_sales: optionalNumber("#expected-sales"),
     status: roleIsManager() ? get("#status") : "Nova", priority: roleIsManager() ? get("#priority") : "Média",
     probability: roleIsManager() ? Number(get("#probability")) || 0 : 10, owner_id: roleIsManager() ? (get("#owner-id") || null) : null,
