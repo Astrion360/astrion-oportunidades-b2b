@@ -272,6 +272,7 @@ function renderAll() {
   renderOpportunityTable();
   renderCalendar();
   renderTeam();
+  hydrateCompanyLogos();
 }
 
 function populatePeopleSelects() {
@@ -287,55 +288,290 @@ function populatePeopleSelects() {
   });
 }
 
+const DASHBOARD_ASSUMPTIONS = Object.freeze({
+  treatmentRate: 0.0004,
+  conversionRate: 0.0175,
+  averageTicket: 95243,
+  adminFeeRate: 0.175,
+  astrionRate: 0.0025
+});
+
+function isOuribank(opportunity) {
+  return normalize(opportunity?.company).includes("ouribank");
+}
+
+function companyLogoUrl(opportunity) {
+  const site = safeHttpUrl(opportunity?.website);
+  if (!site) return null;
+  try {
+    const domain = new URL(site).hostname.replace(/^www\./, "");
+    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+  } catch {
+    return null;
+  }
+}
+
+function companyLogoTemplate(opportunity, size = "md") {
+  const logo = companyLogoUrl(opportunity);
+  const fallback = initials(opportunity?.company || "?");
+  const title = escapeHTML(opportunity?.company || "Empresa");
+  return `<span class="company-logo company-logo--${size}" data-company-logo data-logo-src="${escapeHTML(logo || "")}" title="${title}">
+    <span class="company-logo__fallback">${escapeHTML(fallback)}</span>
+    <img alt="Marca ${title}" loading="lazy" decoding="async">
+  </span>`;
+}
+
+function hydrateCompanyLogos(root = document) {
+  root.querySelectorAll("[data-company-logo]").forEach(wrapper => {
+    if (wrapper.dataset.logoReady === "1") return;
+    wrapper.dataset.logoReady = "1";
+    const img = wrapper.querySelector("img");
+    const src = wrapper.dataset.logoSrc;
+    if (!img || !src) return;
+    img.addEventListener("load", () => wrapper.classList.add("logo-loaded"), { once: true });
+    img.addEventListener("error", () => wrapper.classList.add("logo-failed"), { once: true });
+    img.src = src;
+  });
+}
+
+function dashboardScenario(opportunity) {
+  const base = Number(opportunity?.client_base || 0);
+  const probability = Number(opportunity?.probability || 0);
+  const economics = economicsFor(opportunity?.id);
+
+  if (isOuribank(opportunity)) {
+    const bp = economics?.bp_kpis || {};
+    const astrion = Number(bp.astrion_fee ?? economics?.horizon_astrion_revenue ?? opportunity?.potential_revenue ?? 0);
+    return {
+      opportunity,
+      method: "OURIBANK",
+      base,
+      treatedMonthly: null,
+      conversionsMonthly: null,
+      productionMonthly: null,
+      productionAnnual: null,
+      adminEconomicsAnnual: null,
+      astrionRevenue: astrion,
+      weightedRevenue: astrion * probability / 100,
+      probability,
+      economics
+    };
+  }
+
+  if (!base) {
+    return {
+      opportunity,
+      method: "MISSING_BASE",
+      base: 0,
+      treatedMonthly: 0,
+      conversionsMonthly: 0,
+      productionMonthly: 0,
+      productionAnnual: 0,
+      adminEconomicsAnnual: 0,
+      astrionRevenue: 0,
+      weightedRevenue: 0,
+      probability,
+      economics
+    };
+  }
+
+  const treatedMonthly = base * DASHBOARD_ASSUMPTIONS.treatmentRate;
+  const conversionsMonthly = treatedMonthly * DASHBOARD_ASSUMPTIONS.conversionRate;
+  const productionMonthly = conversionsMonthly * DASHBOARD_ASSUMPTIONS.averageTicket;
+  const productionAnnual = productionMonthly * 12;
+  const adminEconomicsAnnual = productionAnnual * DASHBOARD_ASSUMPTIONS.adminFeeRate;
+  const astrionRevenue = productionAnnual * DASHBOARD_ASSUMPTIONS.astrionRate;
+
+  return {
+    opportunity,
+    method: "PAGBANK_LIKE",
+    base,
+    treatedMonthly,
+    conversionsMonthly,
+    productionMonthly,
+    productionAnnual,
+    adminEconomicsAnnual,
+    astrionRevenue,
+    weightedRevenue: astrionRevenue * probability / 100,
+    probability,
+    economics
+  };
+}
+
+function opportunityHealth(opportunity) {
+  let score = 0;
+  const now = Date.now();
+  const updatedAt = new Date(opportunity.updated_at || opportunity.created_at || 0).getTime();
+  const ageDays = updatedAt ? (now - updatedAt) / 86400000 : 999;
+  const economic = economicsFor(opportunity.id);
+
+  if (opportunity.owner_id) score += 18;
+  if (opportunity.contact_name || opportunity.contact_email || opportunity.contact_phone) score += 14;
+  if (opportunity.next_action && opportunity.next_action_date) score += 22;
+  if (opportunity.client_base) score += 12;
+  if (economic) score += 12;
+  if (opportunity.website || opportunity.cnpj) score += 7;
+  if (opportunity.document_link) score += 5;
+  if (ageDays <= 14) score += 10;
+  if (isOverdue(opportunity)) score -= 15;
+  if (ageDays > 30) score -= 8;
+
+  score = Math.max(0, Math.min(100, score));
+  const label = score >= 75 ? "Saudável" : score >= 50 ? "Atenção" : "Crítica";
+  const tone = score >= 75 ? "good" : score >= 50 ? "warn" : "critical";
+  return { score, label, tone, ageDays };
+}
+
+function compactMoney(value) {
+  if (value === null || value === undefined) return "—";
+  return compactCurrency.format(Number(value));
+}
+
 function renderDashboard() {
   if (!roleIsManager()) return;
+
   const active = state.opportunities.filter(opportunity => !["Ganha", "Perdida", "Pausada"].includes(opportunity.status));
-  const potential = active.reduce((sum, opportunity) => sum + Number(opportunity.potential_revenue || 0), 0);
-  const weighted = active.reduce((sum, opportunity) => sum + Number(opportunity.potential_revenue || 0) * Number(opportunity.probability || 0) / 100, 0);
+  const scenarios = active.map(dashboardScenario);
+  const standard = scenarios.filter(item => item.method === "PAGBANK_LIKE");
+  const ouribank = scenarios.find(item => item.method === "OURIBANK");
+  const missingBase = scenarios.filter(item => item.method === "MISSING_BASE");
+
+  const simulatedRevenue = standard.reduce((sum, item) => sum + item.astrionRevenue, 0);
+  const ouribankRevenue = ouribank?.astrionRevenue || 0;
+  const totalRevenue = simulatedRevenue + ouribankRevenue;
+  const weighted = scenarios.reduce((sum, item) => sum + item.weightedRevenue, 0);
+  const productionMonth = standard.reduce((sum, item) => sum + item.productionMonthly, 0);
+  const productionYear = standard.reduce((sum, item) => sum + item.productionAnnual, 0);
+  const adminEconomics = standard.reduce((sum, item) => sum + item.adminEconomicsAnnual, 0);
+  const mappedBase = active.reduce((sum, item) => sum + Number(item.client_base || 0), 0);
+
   const inSevenDays = new Date(Date.now() + 7 * 86400000);
   const nextCount = active.filter(opportunity => opportunity.next_action_date && new Date(opportunity.next_action_date) >= new Date() && new Date(opportunity.next_action_date) <= inSevenDays).length;
   const overdue = active.filter(isOverdue);
-  $("#kpi-potential").textContent = currency.format(potential);
-  $("#kpi-potential-detail").textContent = `${active.length} ${active.length === 1 ? "oportunidade ativa" : "oportunidades ativas"}`;
+  const modeled = active.filter(item => economicsFor(item.id)?.source_type && economicsFor(item.id)?.source_type !== "ESTIMATIVA_PADRAO").length;
+
+  $("#kpi-potential").textContent = currency.format(totalRevenue);
+  $("#kpi-potential-detail").textContent = `${currency.format(simulatedRevenue)} simulados + ${currency.format(ouribankRevenue)} Ouribank`;
   $("#kpi-weighted").textContent = currency.format(weighted);
-  $("#kpi-next").textContent = number.format(nextCount);
+  $("#kpi-production-month").textContent = currency.format(productionMonth);
+  $("#kpi-production-year").textContent = currency.format(productionYear);
+  $("#kpi-client-base").textContent = number.format(mappedBase);
+  $("#kpi-client-base-detail").textContent = `${number.format(standard.reduce((sum, item) => sum + item.base, 0))} na régua PagBank`;
+  $("#kpi-admin-economics").textContent = currency.format(adminEconomics);
+  $("#kpi-active-count").textContent = number.format(active.length);
+  $("#kpi-model-coverage").textContent = `${modeled} com BP/modelo · ${missingBase.length} sem base`;
   $("#kpi-overdue").textContent = number.format(overdue.length);
+  $("#kpi-overdue-detail").textContent = `${nextCount} ações nos próximos 7 dias`;
+
+  const rankedRevenue = [...scenarios].sort((a,b) => b.astrionRevenue - a.astrionRevenue);
+  const maxRevenue = Math.max(...rankedRevenue.map(item => item.astrionRevenue), 1);
+  $("#revenue-ranking").innerHTML = rankedRevenue.slice(0, 8).map((item, index) => {
+    const opportunity = item.opportunity;
+    const health = opportunityHealth(opportunity);
+    const source = item.method === "OURIBANK" ? "BP próprio" : item.method === "MISSING_BASE" ? "Base pendente" : "PagBank-like";
+    return `<div class="ranking-row open-detail" data-id="${opportunity.id}">
+      <span class="ranking-position">${String(index + 1).padStart(2, "0")}</span>
+      ${companyLogoTemplate(opportunity, "sm")}
+      <div class="ranking-main"><div class="ranking-title"><strong>${escapeHTML(opportunity.company)}</strong><span class="health-dot health-dot--${health.tone}" title="${health.label}"></span></div><small>${source}</small><div class="ranking-track"><span style="width:${Math.max(item.astrionRevenue / maxRevenue * 100, item.astrionRevenue ? 2 : 0)}%"></span></div></div>
+      <strong class="ranking-value">${item.astrionRevenue ? compactMoney(item.astrionRevenue) : "—"}</strong>
+    </div>`;
+  }).join("") || emptyTemplate("Nenhuma oportunidade ativa.");
+
+  const productionRanked = [...standard].sort((a,b) => b.productionAnnual - a.productionAnnual);
+  const maxProduction = Math.max(...productionRanked.map(item => item.productionAnnual), 1);
+  $("#production-ranking").innerHTML = productionRanked.slice(0, 8).map((item, index) => `<div class="ranking-row open-detail" data-id="${item.opportunity.id}">
+      <span class="ranking-position">${String(index + 1).padStart(2, "0")}</span>
+      ${companyLogoTemplate(item.opportunity, "sm")}
+      <div class="ranking-main"><div class="ranking-title"><strong>${escapeHTML(item.opportunity.company)}</strong></div><small>${number.format(Math.round(item.treatedMonthly))} tratados/mês · ${new Intl.NumberFormat("pt-BR",{maximumFractionDigits:1}).format(item.conversionsMonthly)} conversões/mês</small><div class="ranking-track ranking-track--cyan"><span style="width:${Math.max(item.productionAnnual / maxProduction * 100, 2)}%"></span></div></div>
+      <strong class="ranking-value">${compactMoney(item.productionAnnual)}</strong>
+    </div>`).join("") || emptyTemplate("Nenhuma base disponível para simulação.");
 
   const rows = ACTIVE_STATUSES.map(meta => {
-    const items = active.filter(opportunity => opportunity.status === meta.value);
-    return { ...meta, count: items.length, totalValue: items.reduce((sum, opportunity) => sum + Number(opportunity.potential_revenue || 0), 0) };
+    const items = scenarios.filter(item => item.opportunity.status === meta.value);
+    return { ...meta, count: items.length, totalValue: items.reduce((sum, item) => sum + item.astrionRevenue, 0) };
   });
   const max = Math.max(...rows.map(row => row.totalValue), 1);
-  $("#funnel-chart").innerHTML = rows.map(row => `<div class="funnel-row"><span class="funnel-row__label">${row.value}</span><div class="funnel-track"><div class="funnel-fill" style="width:${Math.max(row.totalValue / max * 100, row.count ? 3 : 0)}%"></div></div><span class="funnel-value">${row.count} · ${currency.format(row.totalValue)}</span></div>`).join("");
+  $("#funnel-chart").innerHTML = rows.map(row => `<div class="funnel-row"><span class="funnel-row__label">${row.value}</span><div class="funnel-track"><div class="funnel-fill" style="width:${Math.max(row.totalValue / max * 100, row.count ? 3 : 0)}%"></div></div><span class="funnel-value">${row.count} · ${compactMoney(row.totalValue)}</span></div>`).join("");
 
-  const priorities = [
-    { label: "Alta", color: "#d92d20", count: active.filter(item => item.priority === "Alta").length },
-    { label: "Média", color: "#f79009", count: active.filter(item => item.priority === "Média").length },
-    { label: "Baixa", color: "#079455", count: active.filter(item => item.priority === "Baixa").length }
+  const healthRows = active.map(opportunity => ({ opportunity, ...opportunityHealth(opportunity) }));
+  const healthGroups = [
+    { label: "Saudável", tone: "good", color: "#079455", items: healthRows.filter(item => item.tone === "good") },
+    { label: "Atenção", tone: "warn", color: "#f79009", items: healthRows.filter(item => item.tone === "warn") },
+    { label: "Crítica", tone: "critical", color: "#d92d20", items: healthRows.filter(item => item.tone === "critical") }
   ];
-  const total = Math.max(active.length, 1);
+  const totalHealth = Math.max(healthRows.length, 1);
   let start = 0;
-  const stops = priorities.map(item => { const from = start; start += item.count / total * 100; return `${item.color} ${from}% ${start}%`; }).join(", ");
-  $("#health-chart").innerHTML = `<div class="donut" style="background:conic-gradient(${active.length ? stops : "#e9edf3 0 100%"})"><div class="donut__center"><strong>${active.length}</strong><small>ativas</small></div></div><div class="health-legend">${priorities.map(item => `<span><i style="background:${item.color}"></i>${item.label}: ${item.count}</span>`).join("")}</div>`;
+  const stops = healthGroups.map(group => { const from = start; start += group.items.length / totalHealth * 100; return `${group.color} ${from}% ${start}%`; }).join(", ");
+  const avgHealth = healthRows.length ? Math.round(healthRows.reduce((sum, item) => sum + item.score, 0) / healthRows.length) : 0;
+  $("#health-chart").innerHTML = `<div class="donut" style="background:conic-gradient(${healthRows.length ? stops : "#e9edf3 0 100%"})"><div class="donut__center"><strong>${avgHealth}</strong><small>score médio</small></div></div><div class="health-legend">${healthGroups.map(group => `<span><i style="background:${group.color}"></i>${group.label}: ${group.items.length}</span>`).join("")}</div>`;
+  $("#health-score-summary").innerHTML = `<span><strong>${active.filter(item => !item.next_action_date || !item.next_action).length}</strong> sem próximo passo</span><span><strong>${active.filter(item => !item.owner_id).length}</strong> sem responsável</span><span><strong>${active.filter(item => opportunityHealth(item).ageDays > 14).length}</strong> sem atualização &gt;14d</span>`;
 
-  const actions = active.filter(item => item.next_action_date).sort((a, b) => new Date(a.next_action_date) - new Date(b.next_action_date)).slice(0, 5);
+  const coverage = {
+    bp: active.filter(item => economicsFor(item.id)?.source_type === "BP_REAL").length,
+    specific: active.filter(item => economicsFor(item.id)?.source_type === "MODELO_ESPECIFICO").length,
+    estimate: active.filter(item => economicsFor(item.id)?.source_type === "ESTIMATIVA_PADRAO").length,
+    missing: active.filter(item => !economicsFor(item.id)).length
+  };
+  $("#model-coverage-chart").innerHTML = [
+    ["BP realizado", coverage.bp, "bp"],
+    ["Modelo específico", coverage.specific, "model"],
+    ["Estimativa padrão", coverage.estimate, "estimate"],
+    ["Sem modelagem", coverage.missing, "missing"]
+  ].map(([label,count,tone]) => `<div class="coverage-row"><span class="coverage-icon coverage-icon--${tone}"></span><div><strong>${count}</strong><small>${label}</small></div><span class="coverage-percent">${active.length ? Math.round(count / active.length * 100) : 0}%</span></div>`).join("");
+
+  const ouriEconomics = ouribank?.economics;
+  const bp = ouriEconomics?.bp_kpis || {};
+  const ouriItems = [
+    ["Fee Astrion", bp.astrion_fee ?? ouribankRevenue, "money"],
+    ["Implantação", bp.implantacao, "money"],
+    ["Capital inicial", bp.capital_inicial, "money"],
+    ["Funding máximo", bp.funding_maximo, "money"],
+    ["Go-live", bp.go_live_mes, "month"],
+    ["Break-even EBITDA", bp.break_even_ebitda_mes, "month"],
+    ["Payback", bp.payback_mes, "month"],
+    ["VPL M0", bp.vpl_m0, "money"],
+    ["Produção horizonte", ouriEconomics?.horizon_production, "money"]
+  ];
+  $("#ouribank-spotlight").innerHTML = ouriItems.map(([label,value,type]) => `<div><small>${label}</small><strong>${value === null || value === undefined ? "—" : type === "money" ? compactMoney(value) : "M" + number.format(Number(value))}</strong></div>`).join("");
+
+  const actions = active.filter(item => item.next_action_date).sort((a, b) => new Date(a.next_action_date) - new Date(b.next_action_date)).slice(0, 6);
   $("#next-actions").innerHTML = actions.length ? actions.map(actionRowTemplate).join("") : emptyTemplate("Nenhuma próxima ação cadastrada.");
 
   const noOwner = active.filter(item => !item.owner_id).length;
   const noNext = active.filter(item => !item.next_action_date || !item.next_action).length;
   const stale = active.filter(item => Date.now() - new Date(item.updated_at).getTime() > 14 * 86400000).length;
   const alerts = [
-    overdue.length && { title: `${overdue.length} ${overdue.length === 1 ? "ação atrasada" : "ações atrasadas"}`, text: "Repriorize os compromissos que já venceram." },
+    overdue.length && { title: `${overdue.length} ${overdue.length === 1 ? "ação atrasada" : "ações atrasadas"}`, text: "Repriorize os compromissos vencidos." },
+    missingBase.length && { title: `${missingBase.length} sem base de clientes`, text: "Sem base não há simulação econômica comparável." },
     noOwner && { title: `${noOwner} sem responsável`, text: "Defina a pessoa que conduzirá cada oportunidade." },
     noNext && { title: `${noNext} sem próximo passo`, text: "Todo negócio ativo deve ter ação e prazo definidos." },
-    stale && { title: `${stale} sem atualização recente`, text: "Revise oportunidades sem movimentação há mais de 14 dias." }
+    stale && { title: `${stale} sem atualização recente`, text: "Revise negócios sem movimentação há mais de 14 dias." }
   ].filter(Boolean);
   $("#pipeline-alerts").innerHTML = alerts.length ? alerts.map((alert, index) => `<div class="alert-item"><span>${index + 1}</span><div><strong>${alert.title}</strong><p>${alert.text}</p></div></div>`).join("") : `<div class="alert-item"><span>✓</span><div><strong>Pipeline em dia</strong><p>Nenhum alerta crítico foi identificado.</p></div></div>`;
+
+  const executiveRows = [...scenarios].sort((a,b) => b.astrionRevenue - a.astrionRevenue);
+  $("#executive-ranking-table").innerHTML = executiveRows.map(item => {
+    const op = item.opportunity;
+    const health = opportunityHealth(op);
+    const source = item.method === "OURIBANK" ? '<span class="source-badge source-badge--bp_real">BP próprio</span>' : item.method === "MISSING_BASE" ? '<span class="source-badge source-badge--missing">Sem base</span>' : '<span class="source-badge source-badge--estimativa_padrao">PagBank-like</span>';
+    return `<tr class="open-detail" data-id="${op.id}">
+      <td><div class="company-cell">${companyLogoTemplate(op, "sm")}<div><strong>${escapeHTML(op.company)}</strong><small>${escapeHTML(op.segment || "Segmento a confirmar")}</small></div></div></td>
+      <td>${source}</td>
+      <td>${op.client_base ? number.format(Number(op.client_base)) : "—"}</td>
+      <td>${item.productionMonthly == null ? "—" : compactMoney(item.productionMonthly)}</td>
+      <td><strong>${item.astrionRevenue ? compactMoney(item.astrionRevenue) : "—"}</strong></td>
+      <td>${number.format(item.probability)}%</td>
+      <td>${item.weightedRevenue ? compactMoney(item.weightedRevenue) : "—"}</td>
+      <td><span class="health-pill health-pill--${health.tone}">${health.label} · ${health.score}</span></td>
+    </tr>`;
+  }).join("");
+
+  hydrateCompanyLogos($("#view-dashboard"));
 }
 
 function actionRowTemplate(opportunity) {
   const date = new Date(opportunity.next_action_date);
-  return `<div class="action-row open-detail" data-id="${opportunity.id}"><span class="action-date"><strong>${String(date.getDate()).padStart(2,"0")}</strong>${date.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}</span><div><h4>${escapeHTML(opportunity.company)}</h4><p>${escapeHTML(opportunity.next_action)}</p></div><span class="time-tag ${isOverdue(opportunity) ? "overdue" : ""}">${date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span></div>`;
+  return `<div class="action-row open-detail" data-id="${opportunity.id}"><span class="action-date"><strong>${String(date.getDate()).padStart(2,"0")}</strong>${date.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}</span>${companyLogoTemplate(opportunity, "xs")}<div><h4>${escapeHTML(opportunity.company)}</h4><p>${escapeHTML(opportunity.next_action)}</p></div><span class="time-tag ${isOverdue(opportunity) ? "overdue" : ""}">${date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span></div>`;
 }
 
 function renderPipeline() {
@@ -343,18 +579,18 @@ function renderPipeline() {
   const items = filteredOpportunities();
   const pipelineStatuses = STATUSES.filter(status => !["Perdida", "Pausada"].includes(status.value));
   const total = items.filter(item => !isClosed(item)).reduce((sum, item) => sum + Number(item.potential_revenue || 0), 0);
-  $("#pipeline-summary").innerHTML = `<span><strong>${items.length}</strong> registros visíveis</span><span>·</span><span><strong>${currency.format(total)}</strong> de receita Astrion 12m</span>`;
+  $("#pipeline-summary").innerHTML = `<span><strong>${items.length}</strong> registros visíveis</span><span>·</span><span><strong>${currency.format(total)}</strong> de receita cadastrada</span>`;
   $("#kanban").innerHTML = pipelineStatuses.map(meta => {
     const lane = items.filter(item => item.status === meta.value);
     const laneTotal = lane.reduce((sum, item) => sum + Number(item.potential_revenue || 0), 0);
-    return `<section class="kanban-lane" data-status="${meta.value}" style="--status-color:${meta.color}"><header class="lane-head"><span class="lane-title"><i class="lane-dot"></i>${meta.value}</span><span class="lane-count">${lane.length}</span></header><div class="lane-total">${currency.format(laneTotal)} · receita Astrion 12m</div><div class="lane-cards">${lane.map(kanbanCardTemplate).join("") || `<div class="empty-state">Nenhuma oportunidade</div>`}</div></section>`;
+    return `<section class="kanban-lane" data-status="${meta.value}" style="--status-color:${meta.color}"><header class="lane-head"><span class="lane-title"><i class="lane-dot"></i>${meta.value}</span><span class="lane-count">${lane.length}</span></header><div class="lane-total">${currency.format(laneTotal)} · receita cadastrada</div><div class="lane-cards">${lane.map(kanbanCardTemplate).join("") || `<div class="empty-state">Nenhuma oportunidade</div>`}</div></section>`;
   }).join("");
   bindKanbanDrag();
 }
 
 function kanbanCardTemplate(opportunity) {
   const owner = ownerFor(opportunity.owner_id);
-  return `<article class="kanban-card open-detail" draggable="true" data-id="${opportunity.id}"><div class="kanban-card__top"><span class="company-initial">${initials(opportunity.company)}</span><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><h4>${escapeHTML(opportunity.company)} ${economicSourceBadge(opportunity.id)}</h4><span class="contact-line">${escapeHTML(opportunity.contact_name || opportunity.segment || "Contato a confirmar")}</span><p class="summary-line">${escapeHTML(opportunity.summary)}</p><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span><span>${escapeHTML(owner?.full_name || "A definir")}</span></div><div class="kanban-card__meta"><strong>${money(opportunity.potential_revenue)}</strong><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></div></article>`;
+  return `<article class="kanban-card open-detail" draggable="true" data-id="${opportunity.id}"><div class="kanban-card__top">${companyLogoTemplate(opportunity, "md")}<span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><h4>${escapeHTML(opportunity.company)} ${economicSourceBadge(opportunity.id)}</h4><span class="contact-line">${escapeHTML(opportunity.contact_name || opportunity.segment || "Contato a confirmar")}</span><p class="summary-line">${escapeHTML(opportunity.summary)}</p><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span><span>${escapeHTML(owner?.full_name || "A definir")}</span></div><div class="kanban-card__meta"><strong>${money(opportunity.potential_revenue)}</strong><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></div></article>`;
 }
 
 function bindKanbanDrag() {
@@ -386,7 +622,7 @@ function renderOpportunityTable() {
 function opportunityRowTemplate(opportunity) {
   const meta = statusMeta(opportunity.status);
   const owner = ownerFor(opportunity.owner_id);
-  return `<tr class="open-detail" data-id="${opportunity.id}"><td><div class="company-cell"><span class="company-initial">${initials(opportunity.company)}</span><div><strong>${escapeHTML(opportunity.company)} ${economicSourceBadge(opportunity.id)}</strong><small>${escapeHTML(opportunity.summary)}</small></div></div></td><td><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span></td><td><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></td><td><strong>${money(opportunity.potential_revenue)}</strong></td><td><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span>${escapeHTML(owner?.full_name || "A definir")}</div></td><td><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></td><td><button class="row-action" aria-label="Abrir oportunidade">→</button></td></tr>`;
+  return `<tr class="open-detail" data-id="${opportunity.id}"><td><div class="company-cell">${companyLogoTemplate(opportunity, "md")}<div><strong>${escapeHTML(opportunity.company)} ${economicSourceBadge(opportunity.id)}</strong><small>${escapeHTML(opportunity.summary)}</small></div></div></td><td><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span></td><td><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></td><td><strong>${money(opportunity.potential_revenue)}</strong></td><td><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span>${escapeHTML(owner?.full_name || "A definir")}</div></td><td><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></td><td><button class="row-action" aria-label="Abrir oportunidade">→</button></td></tr>`;
 }
 
 function mobileOpportunityTemplate(opportunity) {
