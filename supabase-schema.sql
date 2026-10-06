@@ -928,7 +928,5 @@ set name='Consórcios | Modelo econômico 10 anos',
     updated_at=now()
 where model_key='astrion_consorcios_padrao';
 
-update public.economic_models
-set active = (model_key in ('astrion_consorcios_padrao','ouribank_adm_propria')),
-    updated_at=now()
-where model_key <> 'astrion_consorcios_padrao' or active is distinct from true;
+delete from public.economic_models
+where model_key not in ('astrion_consorcios_padrao','ouribank_adm_propria');
