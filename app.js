@@ -636,22 +636,26 @@ function renderDashboard() {
   const treatedClients = standard.reduce((sum, item) => sum + item.model.treatedClients, 0);
   const quotasSold = standard.reduce((sum, item) => sum + item.model.quotasSold, 0);
   const mappedBase = standard.reduce((sum, item) => sum + item.base, 0);
+  const partnerCommission = standard.reduce((sum, item) => sum + item.model.partnerCommissionObligation, 0);
 
   const inSevenDays = new Date(Date.now() + 7 * 86400000);
   const nextCount = active.filter(opportunity => opportunity.next_action_date && new Date(opportunity.next_action_date) >= new Date() && new Date(opportunity.next_action_date) <= inSevenDays).length;
   const overdue = active.filter(isOverdue);
 
   $("#kpi-potential").textContent = currency.format(totalRevenue);
-  $("#kpi-potential-detail").textContent = `${currency.format(standardAstrion)} no modelo 10 anos + ${currency.format(ouribankRevenue)} Ouribank`;
+  $("#kpi-potential-detail").textContent = `${currency.format(standardAstrion)} das operações de consórcios + ${currency.format(ouribankRevenue)} do BP próprio Ouribank`;
   $("#kpi-weighted").textContent = currency.format(weighted);
+  $("#kpi-partner-commission").textContent = currency.format(partnerCommission);
+  $("#kpi-client-base").textContent = number.format(Math.round(mappedBase));
+  $("#kpi-client-base-detail").textContent = `${standard.length} parceiros/operações com base modelada; exclui Ouribank`;
   $("#kpi-production-horizon").textContent = currency.format(productionHorizon);
   $("#kpi-ta-horizon").textContent = currency.format(taNominalHorizon);
   $("#kpi-vpl-inc").textContent = currency.format(vplIncremental);
   $("#kpi-vpl-full").textContent = currency.format(vplFullyLoaded);
   $("#kpi-treated").textContent = number.format(Math.round(treatedClients));
-  $("#kpi-treated-detail").textContent = `${mappedBase ? new Intl.NumberFormat("pt-BR",{style:"percent",maximumFractionDigits:1}).format(treatedClients / mappedBase) : "—"} da base modelada`;
+  $("#kpi-treated-detail").textContent = `${mappedBase ? new Intl.NumberFormat("pt-BR",{style:"percent",maximumFractionDigits:1}).format(treatedClients / mappedBase) : "—"} da base total dos parceiros foi alcançada pelo modelo`;
   $("#kpi-sales").textContent = new Intl.NumberFormat("pt-BR",{maximumFractionDigits:0}).format(quotasSold);
-  $("#kpi-sales-detail").textContent = `${standard.length} oportunidades no motor padronizado`;
+  $("#kpi-sales-detail").textContent = `Cotas originadas nas ${standard.length} operações padronizadas; exclui Ouribank`;
 
   const rankedRevenue = [...scenarios].sort((x,y) => y.astrionRevenue - x.astrionRevenue);
   const maxRevenue = Math.max(...rankedRevenue.map(item => item.astrionRevenue), 1);
