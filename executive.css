@@ -139,3 +139,35 @@
 @media(max-width:1250px){.methodology-strip--seven{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:900px){.methodology-strip--seven{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:520px){.methodology-strip--seven{grid-template-columns:1fr}}
+
+.stakeholder-kpis{display:grid;gap:12px;margin-bottom:14px}
+.stakeholder-group{border:1px solid var(--line);border-radius:16px;background:#fff;overflow:hidden;box-shadow:var(--shadow-sm)}
+.stakeholder-group__head{display:flex;align-items:flex-start;gap:12px;padding:14px 16px 11px;border-bottom:1px solid var(--line)}
+.stakeholder-group__tag{display:inline-flex;align-items:center;min-height:24px;padding:0 8px;border-radius:999px;font-size:7px;font-weight:900;letter-spacing:.08em}
+.stakeholder-group__head h3{margin:0;font:800 13px/1.2 "Manrope";color:var(--ink-900)}
+.stakeholder-group__head p{margin:4px 0 0;max-width:920px;color:var(--ink-500);font-size:9px;line-height:1.5}
+.stakeholder-group__grid{display:grid;gap:10px;padding:10px}
+.stakeholder-group__grid--2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.stakeholder-group__grid--3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.stakeholder-group__grid--5{grid-template-columns:repeat(5,minmax(0,1fr))}
+.stakeholder-group--astrion{border-color:#cbd9ff}
+.stakeholder-group--astrion .stakeholder-group__head{background:linear-gradient(90deg,#f6f8ff,#fff)}
+.stakeholder-group--astrion .stakeholder-group__tag{background:#e8efff;color:#164baf}
+.stakeholder-group--partner{border-color:#d8eadf}
+.stakeholder-group--partner .stakeholder-group__head{background:linear-gradient(90deg,#f4fbf6,#fff)}
+.stakeholder-group--partner .stakeholder-group__tag{background:#e8f7ed;color:#067647}
+.stakeholder-group--administrator{border-color:#e7e0f5}
+.stakeholder-group--administrator .stakeholder-group__head{background:linear-gradient(90deg,#faf7ff,#fff)}
+.stakeholder-group--administrator .stakeholder-group__tag{background:#f0eaff;color:#6941c6}
+.stakeholder-group .executive-kpi{box-shadow:none;min-height:138px}
+.stakeholder-group .executive-kpi small{max-width:34ch}
+@media(max-width:1280px){
+  .stakeholder-group__grid--5{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:900px){
+  .stakeholder-group__grid--3,.stakeholder-group__grid--5{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:620px){
+  .stakeholder-group__head{flex-direction:column}
+  .stakeholder-group__grid--2,.stakeholder-group__grid--3,.stakeholder-group__grid--5{grid-template-columns:1fr}
+}
