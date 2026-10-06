@@ -1005,13 +1005,84 @@ function opportunityPayload() {
   };
 }
 
+async function persistStandardModel(opportunity) {
+  if (!state.online || !roleIsManager() || !opportunity?.id || isOuribank(opportunity)) return;
+
+  const base = Number(opportunity.client_base || 0);
+  if (!base) {
+    const { error: opportunityError } = await state.supabase.from("opportunities").update({ potential_revenue: null, expected_sales: null }).eq("id", opportunity.id);
+    if (opportunityError) throw opportunityError;
+    const { error: economicsError } = await state.supabase.from("opportunity_economics").upsert({
+      opportunity_id: opportunity.id,
+      model_key: "astrion_consorcios_padrao",
+      source_type: "ESTIMATIVA_PADRAO",
+      source_reference: "Modelo Astrion de Valuation de Consórcios — 10 anos",
+      source_date: dateKey(new Date()),
+      base_clients: null,
+      projection_months: 120,
+      notes: "Aguardando quantidade de clientes para executar o modelo econômico padronizado.",
+      updated_by: state.currentUser.id
+    }, { onConflict: "opportunity_id" });
+    if (economicsError) throw economicsError;
+    return;
+  }
+
+  const out = simulateStandardModel(base);
+  const economicsPayload = {
+    opportunity_id: opportunity.id,
+    model_key: "astrion_consorcios_padrao",
+    source_type: "ESTIMATIVA_PADRAO",
+    source_reference: "Modelo Astrion de Valuation de Consórcios — 10 anos",
+    source_date: dateKey(new Date()),
+    base_clients: base,
+    treatment_rate_month: null,
+    fte_count: STANDARD_MODEL.operators,
+    clients_per_fte_month: STANDARD_MODEL.clientsPerOperatorMonth,
+    conversion_rate: STANDARD_MODEL.conversionRate * 100,
+    average_ticket: STANDARD_MODEL.segments.reduce((sum, segment) => sum + segment.credit * segment.mix, 0),
+    admin_fee_rate: 18.945222529274958,
+    astrion_revenue_rate: STANDARD_MODEL.astrionRate * 100,
+    upfront_fee: 0,
+    projection_months: STANDARD_MODEL.salesMonths,
+    capex: STANDARD_MODEL.squadFte * STANDARD_MODEL.squadCostPerFte * STANDARD_MODEL.setupMonths + STANDARD_MODEL.capexNonPersonnel,
+    monthly_opex: STANDARD_MODEL.squadFte * STANDARD_MODEL.squadCostPerFte,
+    year1_production: out.year1Production,
+    year1_operation_revenue: out.year1Ta,
+    year1_astrion_revenue: out.year1AstrionRevenue,
+    horizon_production: out.productionHorizon,
+    horizon_operation_revenue: out.taNominalHorizon,
+    horizon_astrion_revenue: out.astrionRevenue,
+    bp_kpis: {
+      clientes_tratados_120m: out.treatedClients,
+      cobertura_base: out.coverageRate,
+      cotas_vendidas_120m: out.quotasSold,
+      caixa_astrion_esperado: out.astrionCashExpected,
+      vpl_incremental: out.vplIncremental,
+      vpl_fully_loaded: out.vplFullyLoaded,
+      payback_incremental_mes: out.paybackIncremental,
+      payback_fully_loaded_mes: out.paybackFull
+    },
+    notes: "Premissas econômicas padronizadas. Nesta oportunidade varia somente a quantidade de clientes.",
+    updated_by: state.currentUser.id
+  };
+  const { error: economicsError } = await state.supabase.from("opportunity_economics").upsert(economicsPayload, { onConflict: "opportunity_id" });
+  if (economicsError) throw economicsError;
+
+  const { error: opportunityError } = await state.supabase.from("opportunities").update({
+    potential_revenue: out.astrionRevenue,
+    expected_sales: out.productionHorizon
+  }).eq("id", opportunity.id);
+  if (opportunityError) throw opportunityError;
+}
+
 async function saveOpportunity(payload, id = null) {
   if (state.online) {
     const query = id ? state.supabase.from("opportunities").update(payload).eq("id", id) : state.supabase.from("opportunities").insert(payload);
     const { data, error } = await query.select().single();
     if (error) throw error;
+    await persistStandardModel(data);
     await refreshOnlineData();
-    return data;
+    return state.opportunities.find(item => item.id === data.id) || data;
   }
   const now = new Date().toISOString();
   if (id) {
