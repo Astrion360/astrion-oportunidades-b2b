@@ -1537,12 +1537,14 @@ function closeMobileMenu() { $("#sidebar").classList.remove("open"); $("#menu-ov
 
 function exportCSV() {
   const headers = [
-    "Empresa","CNPJ","Site","Status","Prioridade","Segmento","Modelo","Origem","Base potencial",
+    "Empresa","CNPJ","Site","Status","Prioridade","Segmento","Canal","Origem","Base de clientes",
     "Contato","Cargo","E-mail","Telefone","Soluções",
-    "Método comparável","Receita Astrion comparável","Produção mensal comparável","Produção anual comparável",
+    "Método econômico","Clientes tratados","Cobertura da base","Cotas estimadas",
+    "Produção ano 1","TA ano 1","Receita Astrion ano 1",
+    "Produção 10 anos","TA nominal run-off","Receita Astrion obrigação","Caixa Astrion esperado",
+    "VPL incremental","VPL fully loaded","Payback incremental","Payback fully loaded",
     "Probabilidade","Receita ponderada","Health score","Health status",
-    "Fonte econômica","BP/Modelo de referência","Produção ano 1 BP","Receita operação ano 1 BP","Receita Astrion ano 1 BP",
-    "Produção horizonte BP","Receita operação horizonte BP","Receita Astrion horizonte BP",
+    "Fonte econômica","Referência econômica",
     "Responsável","Próxima ação","Prazo","Reunião","Previsão de fechamento","Documento","Motivo de perda",
     "Resumo","Particularidades","Criado em","Atualizado em"
   ];
@@ -1550,13 +1552,21 @@ function exportCSV() {
     const scenario = dashboardScenario(item);
     const health = opportunityHealth(item);
     const economic = economicsFor(item.id);
+    const model = scenario.model;
+    const ouri = scenario.method === "OURIBANK";
     return [
       item.company,item.cnpj,item.website,item.status,item.priority,item.segment,item.channel,item.source,item.client_base,
       item.contact_name,item.contact_role,item.contact_email,item.contact_phone,(item.interests||[]).join(", "),
-      scenario.method,scenario.astrionRevenue,scenario.productionMonthly,scenario.productionAnnual,
+      ouri ? "BP próprio" : scenario.method === "MISSING_BASE" ? "Sem base" : "Modelo econômico padronizado 10 anos",
+      model?.treatedClients,model?.coverageRate,model?.quotasSold,
+      model?.year1Production,model?.year1Ta,model?.year1AstrionRevenue,
+      model?.productionHorizon ?? (ouri ? economic?.horizon_production : null),
+      model?.taNominalHorizon ?? (ouri ? economic?.horizon_operation_revenue : null),
+      scenario.astrionRevenue,model?.astrionCashExpected,
+      model?.vplIncremental ?? (ouri ? economic?.bp_kpis?.vpl_m0 : null),
+      model?.vplFullyLoaded,model?.paybackIncremental,model?.paybackFull,
       item.probability,scenario.weightedRevenue,health.score,health.label,
-      economic?.source_type,economic?.source_reference,economic?.year1_production,economic?.year1_operation_revenue,economic?.year1_astrion_revenue,
-      economic?.horizon_production,economic?.horizon_operation_revenue,economic?.horizon_astrion_revenue,
+      economic?.source_type,economic?.source_reference,
       ownerName(item.owner_id),item.next_action,item.next_action_date,item.meeting_date,item.expected_close_date,item.document_link,item.loss_reason,
       item.summary,item.particularities,item.created_at,item.updated_at
     ];
@@ -1564,10 +1574,10 @@ function exportCSV() {
   const csv = "\ufeff" + [headers, ...rows].map(row => row.map(value => `"${String(value ?? "").replaceAll('"','""')}"`).join(";")).join("\n");
   const link = document.createElement("a");
   link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-  link.download = `crm-astrion-executivo-${dateKey(new Date())}.csv`;
+  link.download = `crm-astrion-modelo-economico-${dateKey(new Date())}.csv`;
   link.click();
   URL.revokeObjectURL(link.href);
-  toast("Relatório executivo exportado em CSV.", "success");
+  toast("Relatório econômico e comercial exportado em CSV.", "success");
 }
 
 function renderAuthMode() {
