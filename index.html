@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#071b4d">
   <meta name="description" content="Gestão de oportunidades B2B da Astrion Assessoria.">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://tyakaqlnmfigtyeqmffy.supabase.co wss://tyakaqlnmfigtyeqmffy.supabase.co; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self';">
   <title>Astrion | Oportunidades B2B</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,9 +16,8 @@
 <body>
   <div id="auth-screen" class="auth-screen hidden" aria-live="polite">
     <section class="auth-brand">
-      <div class="brand-lockup brand-lockup--light">
-        <span class="brand-symbol" aria-hidden="true"><i></i></span>
-        <span><strong>ASTRION</strong><small>ASSESSORIA</small></span>
+      <div class="brand-lockup brand-lockup--light brand-lockup--official">
+        <div class="astrion-logo" role="img" aria-label="Astrion Assessoria"></div>
       </div>
       <div class="auth-copy">
         <span class="eyebrow eyebrow--light">Inteligência comercial</span>
@@ -43,17 +44,17 @@
         <form id="signup-form" class="stack-form hidden">
           <label>Nome completo<input id="signup-name" type="text" autocomplete="name" required placeholder="Seu nome"></label>
           <label>E-mail<input id="signup-email" type="email" autocomplete="email" required placeholder="seu@email.com"></label>
-          <label>Senha<input id="signup-password" type="password" autocomplete="new-password" minlength="6" required placeholder="Mínimo de 6 caracteres"></label>
+          <label>Senha<input id="signup-password" type="password" autocomplete="new-password" minlength="12" required placeholder="12+ caracteres, maiúscula, número e símbolo"></label>
           <button class="btn btn--primary btn--wide" type="submit">Criar meu acesso</button>
         </form>
         <form id="recovery-form" class="stack-form hidden">
-          <label>Nova senha<input id="recovery-password" type="password" autocomplete="new-password" minlength="8" required placeholder="Mínimo de 8 caracteres"></label>
-          <label>Confirmar nova senha<input id="recovery-password-confirm" type="password" autocomplete="new-password" minlength="8" required placeholder="Repita a nova senha"></label>
+          <label>Nova senha<input id="recovery-password" type="password" autocomplete="new-password" minlength="12" required placeholder="12+ caracteres, maiúscula, número e símbolo"></label>
+          <label>Confirmar nova senha<input id="recovery-password-confirm" type="password" autocomplete="new-password" minlength="12" required placeholder="Repita a nova senha"></label>
           <button class="btn btn--primary btn--wide" type="submit">Salvar nova senha</button>
         </form>
         <button id="forgot-password" class="text-button" type="button">Esqueci minha senha</button>
         <button id="toggle-auth-mode" class="text-button" type="button">Ainda não tenho acesso</button>
-        <p class="auth-note">Novos acessos entram como cadastradores e não visualizam informações de outras oportunidades.</p>
+        <p class="auth-note">Acesso restrito. Novos usuários somente podem ativar uma conta após autorização do administrador.</p>
       </div>
     </section>
   </div>
@@ -61,9 +62,8 @@
   <div id="app" class="app-shell">
     <aside class="sidebar" id="sidebar">
       <div class="sidebar__head">
-        <a class="brand-lockup brand-lockup--light" href="#dashboard" aria-label="Astrion - início">
-          <span class="brand-symbol" aria-hidden="true"><i></i></span>
-          <span><strong>ASTRION</strong><small>GESTÃO B2B</small></span>
+        <a class="brand-lockup brand-lockup--light brand-lockup--official" href="#dashboard" aria-label="Astrion - início">
+          <div class="astrion-logo astrion-logo--sidebar" role="img" aria-label="Astrion Assessoria"></div>
         </a>
         <button id="close-menu" class="icon-button icon-button--light mobile-only" aria-label="Fechar menu">×</button>
       </div>
