@@ -226,7 +226,7 @@
           <label class="span-2">Resumo da oportunidade *<textarea id="summary" name="summary" required rows="3" placeholder="Descreva o contexto, desafio e objetivo comercial"></textarea></label>
           <fieldset class="span-2 interest-field"><legend>Soluções de interesse</legend><div class="chip-options"><label><input type="checkbox" name="interests" value="Consórcios"><span>Consórcios</span></label><label><input type="checkbox" name="interests" value="Seguros"><span>Seguros</span></label><label><input type="checkbox" name="interests" value="Resseguros"><span>Resseguros</span></label><label><input type="checkbox" name="interests" value="BPO"><span>BPO</span></label><label><input type="checkbox" name="interests" value="Tecnologia"><span>Tecnologia</span></label><label><input type="checkbox" name="interests" value="Outra"><span>Outra</span></label></div></fieldset>
           <label class="span-2">Particularidades, restrições e contexto<textarea id="particularities" name="particularities" rows="3" placeholder="Exclusividade, integrações, compliance, prazos, participantes, concorrentes..."></textarea></label>
-          <label>Potencial de receita (R$)<input id="potential-revenue" name="potential_revenue" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Deixe em branco até estimar"></label><label>Produção / vendas estimadas (R$)<input id="expected-sales" name="expected_sales" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Deixe em branco até estimar"></label>
+          <label>Receita potencial Astrion (R$)<input id="potential-revenue" name="potential_revenue" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Use o modelo econômico ou preencha manualmente"></label><label>Produção / vendas estimadas (R$)<input id="expected-sales" name="expected_sales" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Use o modelo econômico ou preencha manualmente"></label>
         </div></div>
         <div class="form-section manager-fields"><div class="form-section__title"><span>04</span><div><strong>Condução e agenda</strong><small>Responsável, etapa e próximo compromisso.</small></div></div><div class="form-grid">
           <label>Status<select id="status" name="status"></select></label><label>Prioridade<select id="priority" name="priority"><option>Alta</option><option selected>Média</option><option>Baixa</option></select></label><label>Probabilidade<input id="probability" name="probability" type="number" min="0" max="100" step="5" value="10"><span class="input-suffix">%</span></label><label>Responsável<select id="owner-id" name="owner_id"><option value="">A definir</option></select></label>
@@ -238,6 +238,40 @@
   </div>
 
   <div id="detail-drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="detail-title"><div class="drawer__backdrop" data-close="detail-drawer"></div><aside class="drawer__panel"><header class="drawer__head"><div><span id="detail-eyebrow" class="eyebrow">Oportunidade</span><h2 id="detail-title">Empresa</h2></div><button class="icon-button" data-close="detail-drawer" aria-label="Fechar">×</button></header><div id="detail-content" class="drawer__content"></div></aside></div>
+
+  <div id="economics-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="economics-title">
+    <div class="modal__backdrop" data-close="economics-modal"></div>
+    <section class="modal__panel modal__panel--large">
+      <header class="modal__head"><div><span class="eyebrow">Modelo econômico</span><h2 id="economics-title">Premissas executivas</h2><p>Use um modelo Astrion como ponto de partida e ajuste somente o que muda nesta oportunidade.</p></div><button class="icon-button" data-close="economics-modal" aria-label="Fechar">×</button></header>
+      <form id="economics-form">
+        <input type="hidden" id="economics-opportunity-id">
+        <div class="form-section"><div class="form-section__title"><span>01</span><div><strong>Modelo e capacidade</strong><small>Base, cobertura mensal e capacidade operacional.</small></div></div><div class="form-grid">
+          <label class="span-2">Modelo de referência<select id="economic-model-key" required></select></label>
+          <label>Base potencial<input id="economic-base-clients" type="number" min="0" step="1" placeholder="Ex.: 1000000"></label>
+          <label>% da base tratada / mês<input id="economic-treatment-rate" type="number" min="0" max="100" step="0.0001" placeholder="Ex.: 0,50"></label>
+          <label>Operadores / FTEs<input id="economic-fte-count" type="number" min="0" step="0.01" placeholder="Ex.: 50"></label>
+          <label>Clientes por FTE / mês<input id="economic-clients-per-fte" type="number" min="0" step="1" placeholder="Ex.: 250"></label>
+        </div></div>
+        <div class="form-section"><div class="form-section__title"><span>02</span><div><strong>Conversão e economia</strong><small>Premissas comparáveis entre oportunidades e BPs.</small></div></div><div class="form-grid">
+          <label>Conversão (%)<input id="economic-conversion-rate" type="number" min="0" max="100" step="0.0001"></label>
+          <label>Ticket médio (R$)<input id="economic-average-ticket" type="number" min="0" step="0.01"></label>
+          <label>Taxa de administração (%)<input id="economic-admin-fee-rate" type="number" min="0" max="100" step="0.0001"></label>
+          <label>Remuneração Astrion (% produção)<input id="economic-astrion-rate" type="number" min="0" max="100" step="0.0001"></label>
+          <label>Fee / upfront Astrion (R$)<input id="economic-upfront-fee" type="number" min="0" step="0.01"></label>
+          <label>Horizonte (meses)<input id="economic-projection-months" type="number" min="1" max="600" step="1"></label>
+          <label>CAPEX / implantação (R$)<input id="economic-capex" type="number" min="0" step="0.01"></label>
+          <label>OPEX mensal (R$)<input id="economic-monthly-opex" type="number" min="0" step="0.01"></label>
+          <label>Receita acessória mensal (R$)<input id="economic-accessory-revenue" type="number" min="0" step="0.01"></label>
+          <label class="span-2">Observações / origem das premissas<textarea id="economic-notes" rows="3" placeholder="Fonte, racional, limitações ou ajustes desta oportunidade"></textarea></label>
+        </div></div>
+        <div class="form-section economics-preview-section"><div class="form-section__title"><span>03</span><div><strong>Leitura executiva</strong><small>Estimativa nível 1. O BP completo continua sendo a referência para DRE, runoff, VPL, TIR e sensibilidades.</small></div></div>
+          <div id="economics-model-note" class="model-note"></div>
+          <div id="economics-preview" class="economics-preview"></div>
+        </div>
+        <footer class="modal__footer"><button type="button" class="btn btn--ghost" data-close="economics-modal">Cancelar</button><button type="submit" class="btn btn--primary" id="save-economics">Salvar modelo econômico</button></footer>
+      </form>
+    </section>
+  </div>
 
   <div id="setup-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="setup-title"><div class="modal__backdrop" data-close="setup-modal"></div><section class="modal__panel"><header class="modal__head"><div><span class="eyebrow">Publicação</span><h2 id="setup-title">Conectar a base compartilhada</h2></div><button class="icon-button" data-close="setup-modal">×</button></header><div class="setup-steps"><article><span>1</span><div><strong>Crie o projeto no Supabase</strong><p>Use uma conta da Astrion e guarde a região e a senha do banco.</p></div></article><article><span>2</span><div><strong>Execute o arquivo de estrutura</strong><p>Abra o SQL Editor e rode o conteúdo de <code>supabase-schema.sql</code>.</p></div></article><article><span>3</span><div><strong>Informe a URL e a chave pública</strong><p>Preencha o arquivo <code>config.js</code>. Nunca use a chave secreta no GitHub.</p></div></article><article><span>4</span><div><strong>Publique no GitHub Pages</strong><p>Envie os arquivos e ative Pages apontando para a raiz da branch principal.</p></div></article></div><div class="security-note"><strong>Segurança aplicada</strong><p>O banco usa autenticação e regras por perfil. Cadastradores não enxergam oportunidades de outras pessoas; gestores e administradores operam o pipeline.</p></div></section></div>
 
