@@ -123,3 +123,14 @@
   .action-row{grid-template-columns:42px 28px minmax(0,1fr)}
   .action-row .time-tag{grid-column:3}
 }
+
+.card-insights{display:grid;grid-template-columns:1fr auto;gap:8px;margin:9px 0 2px;padding:8px 9px;border-radius:9px;background:#f7f9fc;border:1px solid #edf0f4}
+.card-insights span{font-size:7px;color:var(--ink-400);text-transform:uppercase;letter-spacing:.04em}
+.card-insights strong{display:block;margin-top:3px;color:var(--ink-800);font:800 9px/1 "Manrope"}
+.health-text--good{color:#067647!important}.health-text--warn{color:#b54708!important}.health-text--critical{color:#b42318!important}
+.metric-caption{display:block;margin-top:3px;color:var(--ink-400);font-size:7px;text-transform:uppercase;letter-spacing:.04em}
+.mobile-company{display:flex;align-items:center;gap:8px;min-width:0}
+.mobile-company strong{font:800 12px/1.2 "Manrope";white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.detail-company-head{display:flex;align-items:center;gap:10px;margin-bottom:13px}
+.detail-company-head>div{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.detail-method{color:var(--ink-500);font-size:8px;text-transform:uppercase;letter-spacing:.07em;font-weight:800}
