@@ -444,7 +444,7 @@ function openOpportunityModal(opportunity = null) {
   form.reset();
   $("#opportunity-id").value = opportunity?.id || "";
   $("#opportunity-modal-title").textContent = opportunity ? "Editar oportunidade B2B" : "Nova oportunidade B2B";
-  const fields = ["company", "cnpj", "website", "segment", "channel", "source", "client_base", "contact_name", "contact_role", "contact_email", "contact_phone", "summary", "particularities", "potential_revenue", "expected_sales", "status", "priority", "probability", "owner_id", "next_action", "expected_close_date", "document_link"];
+  const fields = ["company", "cnpj", "website", "segment", "channel", "source", "client_base", "contact_name", "contact_role", "contact_email", "contact_phone", "summary", "particularities", "potential_revenue", "expected_sales", "status", "priority", "probability", "owner_id", "next_action", "expected_close_date", "document_link", "loss_reason"];
   fields.forEach(key => {
     const element = $(`#${key.replaceAll("_", "-")}`);
     if (element) element.value = opportunity?.[key] ?? "";
@@ -461,19 +461,25 @@ function openOpportunityModal(opportunity = null) {
 
 function opportunityPayload() {
   const get = id => $(id).value.trim();
+  const optionalNumber = id => get(id) === "" ? null : Number(get(id));
+  const website = get("#website");
+  const documentLink = get("#document-link");
+  if (website && !safeHttpUrl(website)) throw new Error("O site deve começar com http:// ou https://.");
+  if (documentLink && !safeHttpUrl(documentLink)) throw new Error("O link do documento deve começar com http:// ou https://.");
   return {
-    company: get("#company"), cnpj: get("#cnpj") || null, website: get("#website") || null,
+    company: get("#company"), cnpj: normalizeCNPJ(get("#cnpj")) || null, website: website || null,
     segment: get("#segment") || null, channel: get("#channel") || "B2B", source: get("#source") || null,
-    client_base: Number(get("#client-base")) || null, contact_name: get("#contact-name") || null,
+    client_base: optionalNumber("#client-base"), contact_name: get("#contact-name") || null,
     contact_role: get("#contact-role") || null, contact_email: get("#contact-email") || null,
     contact_phone: get("#contact-phone") || null, summary: get("#summary"), particularities: get("#particularities") || null,
-    interests: $$('input[name="interests"]:checked').map(input => input.value),
-    potential_revenue: Number(get("#potential-revenue")) || 0, expected_sales: Number(get("#expected-sales")) || 0,
+    interests: $('input[name="interests"]:checked').map(input => input.value),
+    potential_revenue: optionalNumber("#potential-revenue"), expected_sales: optionalNumber("#expected-sales"),
     status: roleIsManager() ? get("#status") : "Nova", priority: roleIsManager() ? get("#priority") : "Média",
     probability: roleIsManager() ? Number(get("#probability")) || 0 : 10, owner_id: roleIsManager() ? (get("#owner-id") || null) : null,
     next_action: roleIsManager() ? (get("#next-action") || null) : null, next_action_date: roleIsManager() ? toISO(get("#next-action-date")) : null,
     meeting_date: roleIsManager() ? toISO(get("#meeting-date")) : null, expected_close_date: roleIsManager() ? (get("#expected-close-date") || null) : null,
-    document_link: roleIsManager() ? (get("#document-link") || null) : null
+    document_link: roleIsManager() ? (documentLink || null) : null,
+    loss_reason: roleIsManager() ? (get("#loss-reason") || null) : null
   };
 }
 
@@ -692,8 +698,8 @@ function openMobileMenu() { $("#sidebar").classList.add("open"); $("#menu-overla
 function closeMobileMenu() { $("#sidebar").classList.remove("open"); $("#menu-overlay").classList.remove("open"); }
 
 function exportCSV() {
-  const headers = ["Empresa","Status","Prioridade","Segmento","Contato","E-mail","Telefone","Potencial de receita","Probabilidade","Responsável","Próxima ação","Prazo","Previsão de fechamento","Origem","Resumo","Particularidades"];
-  const rows = filteredOpportunities().map(item => [item.company,item.status,item.priority,item.segment,item.contact_name,item.contact_email,item.contact_phone,item.potential_revenue,item.probability,ownerName(item.owner_id),item.next_action,item.next_action_date,item.expected_close_date,item.source,item.summary,item.particularities]);
+  const headers = ["Empresa","CNPJ","Site","Status","Prioridade","Segmento","Modelo","Origem","Base potencial","Contato","Cargo","E-mail","Telefone","Soluções","Potencial de receita","Produção estimada","Probabilidade","Responsável","Próxima ação","Prazo","Reunião","Previsão de fechamento","Documento","Motivo de perda","Resumo","Particularidades","Criado em","Atualizado em"];
+  const rows = filteredOpportunities().map(item => [item.company,item.cnpj,item.website,item.status,item.priority,item.segment,item.channel,item.source,item.client_base,item.contact_name,item.contact_role,item.contact_email,item.contact_phone,(item.interests||[]).join(", "),item.potential_revenue,item.expected_sales,item.probability,ownerName(item.owner_id),item.next_action,item.next_action_date,item.meeting_date,item.expected_close_date,item.document_link,item.loss_reason,item.summary,item.particularities,item.created_at,item.updated_at]);
   const csv = "\ufeff" + [headers, ...rows].map(row => row.map(value => `"${String(value ?? "").replaceAll('"','""')}"`).join(";")).join("\n");
   const link = document.createElement("a");
   link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -704,7 +710,9 @@ function exportCSV() {
 }
 
 function renderAuthMode() {
-  const signup = state.authMode === "signup";
+  const params = new URLSearchParams(window.location.search);
+  const invitedEmail = params.get("invite") === "1" ? (params.get("email") || "") : "";
+  const signup = state.authMode === "signup" && Boolean(invitedEmail);
   const recovery = state.authMode === "recovery";
   const login = !signup && !recovery;
 
@@ -712,25 +720,31 @@ function renderAuthMode() {
   $("#signup-form").classList.toggle("hidden", !signup);
   $("#recovery-form").classList.toggle("hidden", !recovery);
   $("#forgot-password").classList.toggle("hidden", !login);
-  $("#toggle-auth-mode").classList.toggle("hidden", false);
+  $("#toggle-auth-mode").classList.toggle("hidden", !recovery);
+
+  if (signup) {
+    $("#signup-email").value = invitedEmail.toLowerCase();
+    $("#signup-email").readOnly = true;
+  } else {
+    $("#signup-email").readOnly = false;
+  }
 
   if (recovery) {
     $("#auth-title").textContent = "Definir nova senha";
-    $("#auth-subtitle").textContent = "Informe uma nova senha para concluir a recuperação do acesso.";
+    $("#auth-subtitle").textContent = "Use uma senha forte e exclusiva para concluir a recuperação.";
     $("#toggle-auth-mode").textContent = "Voltar ao login";
   } else if (signup) {
-    $("#auth-title").textContent = "Criar acesso de cadastrador";
-    $("#auth-subtitle").textContent = "Cadastre-se para enviar oportunidades com segurança.";
-    $("#toggle-auth-mode").textContent = "Já tenho acesso";
+    $("#auth-title").textContent = "Ativar acesso";
+    $("#auth-subtitle").textContent = "Seu e-mail foi previamente autorizado pela administração da Astrion.";
   } else {
     $("#auth-title").textContent = "Entrar na plataforma";
-    $("#auth-subtitle").textContent = "Use seu e-mail e senha cadastrados.";
-    $("#toggle-auth-mode").textContent = "Ainda não tenho acesso";
+    $("#auth-subtitle").textContent = "Acesso restrito a usuários autorizados.";
   }
 }
 
 function toggleAuthMode() {
-  state.authMode = state.authMode === "recovery" ? "login" : (state.authMode === "login" ? "signup" : "login");
+  state.authMode = "login";
+  history.replaceState(null, "", window.location.pathname);
   renderAuthMode();
 }
 
@@ -750,12 +764,22 @@ async function handleLogin(event) {
 async function handleSignup(event) {
   event.preventDefault();
   const button = event.submitter;
+  const password = $("#signup-password").value;
+  if (!strongPassword(password)) {
+    toast("Use pelo menos 12 caracteres, com maiúscula, minúscula, número e símbolo.", "error");
+    return;
+  }
   button.disabled = true;
   try {
-    const { data, error } = await state.supabase.auth.signUp({ email: $("#signup-email").value.trim(), password: $("#signup-password").value, options: { data: { full_name: $("#signup-name").value.trim() } } });
+    const { data, error } = await state.supabase.auth.signUp({ email: $("#signup-email").value.trim().toLowerCase(), password, options: { data: { full_name: $("#signup-name").value.trim() } } });
     if (error) throw error;
     if (data.session) { await hydrateOnline(data.user); startApp(); }
-    else { toast("Cadastro criado. Confirme o e-mail para entrar.", "success"); toggleAuthMode(); }
+    else {
+      toast("Acesso criado. Confirme o e-mail para concluir a ativação.", "success");
+      history.replaceState(null, "", window.location.pathname);
+      state.authMode = "login";
+      renderAuthMode();
+    }
   } catch (error) { handleError(error); }
   finally { button.disabled = false; }
 }
@@ -785,8 +809,8 @@ async function handleRecoveryPassword(event) {
   const password = $("#recovery-password").value;
   const confirmation = $("#recovery-password-confirm").value;
 
-  if (password.length < 8) {
-    toast("A nova senha deve ter pelo menos 8 caracteres.", "error");
+  if (!strongPassword(password)) {
+    toast("Use pelo menos 12 caracteres, com maiúscula, minúscula, número e símbolo.", "error");
     return;
   }
   if (password !== confirmation) {
