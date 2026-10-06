@@ -1,0 +1,19 @@
+/* Astrion CRM — modelo econômico executivo */
+.detail-section__head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.detail-section__head h3{margin:0}
+.detail-section__head p{margin:6px 0 0;color:var(--ink-500);font-size:10px;line-height:1.5;max-width:560px}
+.detail-section--economics{background:linear-gradient(180deg,#fbfcff,#fff);border:1px solid #e4e9f1;border-radius:14px;padding:16px}
+.economic-summary-grid,.economics-preview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}
+.economic-summary-grid>div,.economics-preview>div{border:1px solid var(--line);border-radius:11px;padding:11px 12px;background:#fff;min-width:0}
+.economic-summary-grid small,.economics-preview small{display:block;color:var(--ink-500);font-size:8px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.economic-summary-grid strong,.economics-preview strong{display:block;color:var(--ink-900);font:800 14px/1.2 "Manrope";overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.economic-assumptions{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.economic-assumptions span{padding:6px 8px;border-radius:999px;background:#f3f6fb;color:var(--ink-500);font-size:8px;font-weight:700}
+.economic-source{margin:11px 0 0;color:var(--ink-500);font-size:9px;line-height:1.5}
+.model-note{margin:0 20px 14px;padding:11px 13px;border-radius:11px;background:#f7f9fc;border:1px solid var(--line);display:grid;gap:4px}
+.model-note strong{font-size:11px}
+.model-note span{color:var(--ink-500);font-size:9px;line-height:1.5}
+.economics-preview-section{background:#fbfcfe}
+.economics-preview{padding:0 20px 4px;margin-top:0}
+@media(max-width:760px){.detail-section__head{flex-direction:column}.economic-summary-grid,.economics-preview{grid-template-columns:1fr 1fr}}
+@media(max-width:480px){.economic-summary-grid,.economics-preview{grid-template-columns:1fr}}
