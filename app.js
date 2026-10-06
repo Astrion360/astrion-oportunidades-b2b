@@ -661,6 +661,22 @@ function calculateEconomics(economic = {}, opportunity = {}) {
   };
 }
 
+function economicDirectOutputsTemplate(economic) {
+  if (!economic) return "";
+  const labels = { BP_REAL: "BP realizado", MODELO_ESPECIFICO: "Modelo específico", ESTIMATIVA_PADRAO: "Estimativa pela base" };
+  const sourceLabel = labels[economic.source_type] || "Premissas manuais";
+  const cards = [];
+  const addMoney = (label, value) => { if (value !== null && value !== undefined) cards.push('<div><small>' + escapeHTML(label) + '</small><strong>' + currency.format(Number(value)) + '</strong></div>'); };
+  addMoney("Produção · ano 1", economic.year1_production);
+  addMoney("Receita operação/parceiro · ano 1", economic.year1_operation_revenue);
+  addMoney("Receita Astrion · ano 1", economic.year1_astrion_revenue);
+  addMoney("Produção · horizonte", economic.horizon_production);
+  addMoney("Receita operação/parceiro · horizonte", economic.horizon_operation_revenue);
+  addMoney("Receita Astrion · horizonte", economic.horizon_astrion_revenue);
+  const source = economic.source_reference ? '<p class="economic-source"><strong>Origem:</strong> ' + escapeHTML(economic.source_reference) + (economic.source_date ? ' · ' + formatDate(economic.source_date, { year: true }) : '') + '</p>' : '';
+  return '<div class="bp-output-block"><div class="economic-title-row"><span class="source-badge source-badge--' + normalize(economic.source_type || "manual") + '">' + escapeHTML(sourceLabel) + '</span></div>' + (cards.length ? '<div class="bp-output-grid">' + cards.join("") + '</div>' : '') + source + '</div>';
+}
+
 function economicSummaryTemplate(economic, opportunity) {
   if (!roleIsManager()) return "";
   if (!economic) {
@@ -670,7 +686,8 @@ function economicSummaryTemplate(economic, opportunity) {
   const out = calculateEconomics(economic, opportunity);
   const isOwnAdmin = model?.family === "Administradora própria";
   return `<section class="detail-section detail-section--economics">
-    <div class="detail-section__head"><div><span class="eyebrow">Modelo econômico</span><h3>${escapeHTML(model?.name || economic.model_key)}</h3><p>${escapeHTML(model?.description || "")}</p></div><button class="btn btn--ghost btn--small" id="edit-economics" data-id="${opportunity.id}">Editar premissas</button></div>
+    <div class="detail-section__head"><div><span class="eyebrow">Modelo econômico</span><h3>${escapeHTML(model?.name || economic.model_key)}</h3><p>${escapeHTML(economic.notes || model?.description || "")}</p></div><button class="btn btn--ghost btn--small" id="edit-economics" data-id="${opportunity.id}">Editar premissas</button></div>
+    ${economicDirectOutputsTemplate(economic)}
     <div class="economic-summary-grid">
       <div><small>Clientes tratados / mês</small><strong>${number.format(Math.round(out.treatedClients))}</strong></div>
       <div><small>Conversões / mês</small><strong>${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(out.conversions)}</strong></div>
@@ -845,7 +862,7 @@ async function openDetail(id) {
     ...history.map(item => ({ kind: item.event_type === "created" ? "Cadastro" : "Alteração", text: item.description || historyDescription(item), date: item.created_at, user: ownerName(item.changed_by) }))
   ].sort((a,b) => new Date(b.date) - new Date(a.date));
   $("#detail-content").innerHTML = `
-    <section class="detail-hero"><div class="detail-hero__top"><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><p>${escapeHTML(opportunity.summary)}</p><div class="detail-metrics"><div><small>Receita Astrion · 12m</small><strong>${money(opportunity.potential_revenue)}</strong></div><div><small>Produção mensal</small><strong>${money(opportunity.expected_sales)}</strong></div><div><small>Probabilidade</small><strong>${opportunity.probability || 0}%</strong></div><div><small>Receita ponderada</small><strong>${opportunity.potential_revenue == null ? "—" : currency.format(Number(opportunity.potential_revenue) * Number(opportunity.probability || 0) / 100)}</strong></div></div></section>
+    <section class="detail-hero"><div class="detail-hero__top"><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><p>${escapeHTML(opportunity.summary)}</p><div class="detail-metrics"><div><small>Receita Astrion identificada</small><strong>${money(opportunity.potential_revenue)}</strong></div><div><small>Produção mensal / média</small><strong>${money(opportunity.expected_sales)}</strong></div><div><small>Probabilidade</small><strong>${opportunity.probability || 0}%</strong></div><div><small>Receita ponderada</small><strong>${opportunity.potential_revenue == null ? "—" : currency.format(Number(opportunity.potential_revenue) * Number(opportunity.probability || 0) / 100)}</strong></div></div></section>
     ${economicSummaryTemplate(economics, opportunity)}
     ${roleIsManager() ? `<section class="detail-section"><h3>Condução comercial</h3><div class="inline-edit"><label>Etapa<select id="detail-status">${STATUSES.map(item => `<option ${item.value === opportunity.status ? "selected" : ""}>${item.value}</option>`).join("")}</select></label><label>Próxima ação<input id="detail-next-action" value="${escapeHTML(opportunity.next_action || "")}" placeholder="Defina o próximo passo"></label><label>Prazo<input id="detail-next-date" type="datetime-local" value="${toLocalInput(opportunity.next_action_date)}"></label><button class="btn btn--primary btn--small" id="save-quick-update" data-id="${id}">Atualizar condução</button></div></section>` : ""}
     <section class="detail-section"><h3>Empresa e contato</h3><div class="detail-grid"><div><small>CNPJ</small><strong>${escapeHTML(opportunity.cnpj || "Não informado")}</strong></div><div><small>Site</small>${safeHttpUrl(opportunity.website) ? `<a href="${escapeHTML(safeHttpUrl(opportunity.website))}" target="_blank" rel="noopener noreferrer">Abrir site ↗</a>` : "<strong>Não informado</strong>"}</div><div><small>Segmento</small><strong>${escapeHTML(opportunity.segment || "A confirmar")}</strong></div><div><small>Origem</small><strong>${escapeHTML(opportunity.source || "Não informada")}</strong></div><div><small>Contato</small><strong>${escapeHTML(opportunity.contact_name || "A confirmar")}${opportunity.contact_role ? ` · ${escapeHTML(opportunity.contact_role)}` : ""}</strong></div><div><small>E-mail</small>${opportunity.contact_email ? `<a href="mailto:${escapeHTML(opportunity.contact_email)}">${escapeHTML(opportunity.contact_email)}</a>` : "<strong>Não informado</strong>"}</div><div><small>Telefone</small><strong>${escapeHTML(opportunity.contact_phone || "Não informado")}</strong></div><div><small>Base potencial</small><strong>${opportunity.client_base !== null && opportunity.client_base !== undefined ? number.format(opportunity.client_base) : "Não informada"}</strong></div></div></section>
@@ -978,7 +995,7 @@ function openMobileMenu() { $("#sidebar").classList.add("open"); $("#menu-overla
 function closeMobileMenu() { $("#sidebar").classList.remove("open"); $("#menu-overlay").classList.remove("open"); }
 
 function exportCSV() {
-  const headers = ["Empresa","CNPJ","Site","Status","Prioridade","Segmento","Modelo","Origem","Base potencial","Contato","Cargo","E-mail","Telefone","Soluções","Receita Astrion 12m","Produção mensal estimada","Probabilidade","Responsável","Próxima ação","Prazo","Reunião","Previsão de fechamento","Documento","Motivo de perda","Resumo","Particularidades","Criado em","Atualizado em"];
+  const headers = ["Empresa","CNPJ","Site","Status","Prioridade","Segmento","Modelo","Origem","Base potencial","Contato","Cargo","E-mail","Telefone","Soluções","Receita Astrion 12m","Produção mensal / média estimada","Probabilidade","Responsável","Próxima ação","Prazo","Reunião","Previsão de fechamento","Documento","Motivo de perda","Resumo","Particularidades","Criado em","Atualizado em"];
   const rows = filteredOpportunities().map(item => [item.company,item.cnpj,item.website,item.status,item.priority,item.segment,item.channel,item.source,item.client_base,item.contact_name,item.contact_role,item.contact_email,item.contact_phone,(item.interests||[]).join(", "),item.potential_revenue,item.expected_sales,item.probability,ownerName(item.owner_id),item.next_action,item.next_action_date,item.meeting_date,item.expected_close_date,item.document_link,item.loss_reason,item.summary,item.particularities,item.created_at,item.updated_at]);
   const csv = "\ufeff" + [headers, ...rows].map(row => row.map(value => `"${String(value ?? "").replaceAll('"','""')}"`).join(";")).join("\n");
   const link = document.createElement("a");
