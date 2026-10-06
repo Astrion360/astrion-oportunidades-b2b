@@ -31,6 +31,7 @@ const state = {
   history: [],
   accessAllowlist: [],
   economicModels: [],
+  economics: [],
   view: "dashboard",
   search: "",
   priority: "",
@@ -188,11 +189,17 @@ async function refreshOnlineData() {
   state.profiles = profilesResult.error ? [state.profile] : (profilesResult.data || [state.profile]);
 
   if (roleIsManager()) {
-    const { data, error } = await state.supabase.from("economic_models").select("*").eq("active", true).order("sort_order");
-    if (error) throw error;
-    state.economicModels = data || [];
+    const [modelsResult, economicsResult] = await Promise.all([
+      state.supabase.from("economic_models").select("*").eq("active", true).order("sort_order"),
+      state.supabase.from("opportunity_economics").select("*")
+    ]);
+    if (modelsResult.error) throw modelsResult.error;
+    if (economicsResult.error) throw economicsResult.error;
+    state.economicModels = modelsResult.data || [];
+    state.economics = economicsResult.data || [];
   } else {
     state.economicModels = [];
+    state.economics = [];
   }
 
   if (roleIsAdmin()) {
@@ -347,7 +354,7 @@ function renderPipeline() {
 
 function kanbanCardTemplate(opportunity) {
   const owner = ownerFor(opportunity.owner_id);
-  return `<article class="kanban-card open-detail" draggable="true" data-id="${opportunity.id}"><div class="kanban-card__top"><span class="company-initial">${initials(opportunity.company)}</span><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><h4>${escapeHTML(opportunity.company)}</h4><span class="contact-line">${escapeHTML(opportunity.contact_name || opportunity.segment || "Contato a confirmar")}</span><p class="summary-line">${escapeHTML(opportunity.summary)}</p><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span><span>${escapeHTML(owner?.full_name || "A definir")}</span></div><div class="kanban-card__meta"><strong>${money(opportunity.potential_revenue)}</strong><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></div></article>`;
+  return `<article class="kanban-card open-detail" draggable="true" data-id="${opportunity.id}"><div class="kanban-card__top"><span class="company-initial">${initials(opportunity.company)}</span><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><h4>${escapeHTML(opportunity.company)} ${economicSourceBadge(opportunity.id)}</h4><span class="contact-line">${escapeHTML(opportunity.contact_name || opportunity.segment || "Contato a confirmar")}</span><p class="summary-line">${escapeHTML(opportunity.summary)}</p><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span><span>${escapeHTML(owner?.full_name || "A definir")}</span></div><div class="kanban-card__meta"><strong>${money(opportunity.potential_revenue)}</strong><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></div></article>`;
 }
 
 function bindKanbanDrag() {
@@ -379,7 +386,7 @@ function renderOpportunityTable() {
 function opportunityRowTemplate(opportunity) {
   const meta = statusMeta(opportunity.status);
   const owner = ownerFor(opportunity.owner_id);
-  return `<tr class="open-detail" data-id="${opportunity.id}"><td><div class="company-cell"><span class="company-initial">${initials(opportunity.company)}</span><div><strong>${escapeHTML(opportunity.company)}</strong><small>${escapeHTML(opportunity.summary)}</small></div></div></td><td><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span></td><td><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></td><td><strong>${money(opportunity.potential_revenue)}</strong></td><td><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span>${escapeHTML(owner?.full_name || "A definir")}</div></td><td><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></td><td><button class="row-action" aria-label="Abrir oportunidade">→</button></td></tr>`;
+  return `<tr class="open-detail" data-id="${opportunity.id}"><td><div class="company-cell"><span class="company-initial">${initials(opportunity.company)}</span><div><strong>${escapeHTML(opportunity.company)} ${economicSourceBadge(opportunity.id)}</strong><small>${escapeHTML(opportunity.summary)}</small></div></div></td><td><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span></td><td><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></td><td><strong>${money(opportunity.potential_revenue)}</strong></td><td><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span>${escapeHTML(owner?.full_name || "A definir")}</div></td><td><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></td><td><button class="row-action" aria-label="Abrir oportunidade">→</button></td></tr>`;
 }
 
 function mobileOpportunityTemplate(opportunity) {
@@ -625,6 +632,15 @@ const percent = value => value === null || value === undefined || value === "" ?
 function economicModelFor(key) {
   return state.economicModels.find(model => model.model_key === key) || null;
 }
+function economicsFor(opportunityId) {
+  return state.economics.find(item => item.opportunity_id === opportunityId) || null;
+}
+function economicSourceBadge(opportunityId) {
+  const economic = economicsFor(opportunityId);
+  if (!economic?.source_type) return "";
+  const labels = { BP_REAL: "BP", MODELO_ESPECIFICO: "Modelo", ESTIMATIVA_PADRAO: "Estimativa" };
+  return '<span class="mini-source mini-source--' + normalize(economic.source_type) + '">' + escapeHTML(labels[economic.source_type] || "Manual") + '</span>';
+}
 
 function calculateEconomics(economic = {}, opportunity = {}) {
   const baseClients = Number(economic.base_clients ?? opportunity.client_base ?? 0);
@@ -685,10 +701,11 @@ function economicSummaryTemplate(economic, opportunity) {
   const model = economicModelFor(economic.model_key);
   const out = calculateEconomics(economic, opportunity);
   const isOwnAdmin = model?.family === "Administradora própria";
+  const hideSimplified = economic.source_type === "BP_REAL" || economic.source_type === "MODELO_ESPECIFICO";
   return `<section class="detail-section detail-section--economics">
     <div class="detail-section__head"><div><span class="eyebrow">Modelo econômico</span><h3>${escapeHTML(model?.name || economic.model_key)}</h3><p>${escapeHTML(economic.notes || model?.description || "")}</p></div><button class="btn btn--ghost btn--small" id="edit-economics" data-id="${opportunity.id}">Editar premissas</button></div>
     ${economicDirectOutputsTemplate(economic)}
-    <div class="economic-summary-grid">
+    <div class="economic-summary-grid ${hideSimplified ? "bp-calculated-hidden" : ""}">
       <div><small>Clientes tratados / mês</small><strong>${number.format(Math.round(out.treatedClients))}</strong></div>
       <div><small>Conversões / mês</small><strong>${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(out.conversions)}</strong></div>
       <div><small>Produção / mês</small><strong>${currency.format(out.monthlyProduction)}</strong></div>
