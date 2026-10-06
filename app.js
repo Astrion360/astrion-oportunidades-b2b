@@ -289,13 +289,46 @@ function populatePeopleSelects() {
   });
 }
 
-const DASHBOARD_ASSUMPTIONS = Object.freeze({
-  treatmentRate: 0.0004,
+const STANDARD_MODEL = Object.freeze({
+  salesMonths: 120,
+  maxProductTerm: 216,
+  operators: 50,
+  clientsPerOperatorMonth: 250,
+  operatorCostMonth: 7000,
+  ramp: [0.2, 0.4, 0.6, 0.8, 0.9, 1],
+  seasonality: [
+    0.9821627906976744, 0.8843953488372094, 0.993906976744186, 0.8837209302325582,
+    1.0809767441860465, 0.8957674418604651, 0.9767441860465116, 1.0232558139534884,
+    1.1793953488372093, 1.2050697674418605, 1.0108837209302326, 0.8837209302325582
+  ],
   conversionRate: 0.0175,
-  averageTicket: 95243,
-  adminFeeRate: 0.175,
-  astrionRate: 0.0025
+  cancellationLifetime: 0.15,
+  defaultRate: 0.0235,
+  cureRate: 0.5,
+  creditGrowthAnnual: 0.045,
+  discountRateAnnual: 0.18,
+  revenueTaxRate: 0.1125,
+  incomeTaxRate: 0.34,
+  astrionRate: 0.0025,
+  commissionInstallments: 10,
+  squadFte: 6,
+  squadCostPerFte: 25000,
+  setupMonths: 6,
+  capexNonPersonnel: 400000,
+  squadRunoffRate: 0.3,
+  opexIncrementalAdditional: 0,
+  costPerActiveQuota: 0,
+  segments: [
+    { name: "Imóveis", credit: 222300, term: 216, adminRate: 0.2152, mix: 0.1723229620821773 },
+    { name: "Automóveis", credit: 71200, term: 89, adminRate: 0.1831, mix: 0.3505251684502576 },
+    { name: "Pesados", credit: 247700, term: 104, adminRate: 0.137, mix: 0.07088122605363985 },
+    { name: "Serviços", credit: 15600, term: 39, adminRate: 0.2456, mix: 0.005392059717267803 },
+    { name: "Motos", credit: 19300, term: 65, adminRate: 0.2005, mix: 0.28994913462808825 },
+    { name: "Outros", credit: 8000, term: 58, adminRate: 0.2194, mix: 0.11092944906856916 }
+  ]
 });
+
+const standardModelCache = new Map();
 
 function isOuribank(opportunity) {
   return normalize(opportunity?.company).includes("ouribank");
@@ -335,6 +368,179 @@ function hydrateCompanyLogos(root = document) {
   });
 }
 
+function partnerCommissionObligation(production) {
+  return Math.min(production, 2000000) * 0.012
+    + Math.max(Math.min(production - 2000000, 3000000), 0) * 0.015
+    + Math.max(production - 5000000, 0) * 0.018;
+}
+
+function simulateStandardModel(baseClients) {
+  const base = Math.max(0, Number(baseClients || 0));
+  if (!base) return null;
+  const cacheKey = String(base);
+  if (standardModelCache.has(cacheKey)) return standardModelCache.get(cacheKey);
+
+  const p = STANDARD_MODEL;
+  const months = p.salesMonths + p.maxProductTerm;
+  const monthlyGrowth = Math.pow(1 + p.creditGrowthAnnual, 1 / 12);
+  const netDefault = p.defaultRate * (1 - p.cureRate);
+  const retentionEconomic = (1 - p.cancellationLifetime) * (1 - netDefault);
+  const capacity = p.operators * p.clientsPerOperatorMonth;
+  const weightedTicket = p.segments.reduce((sum, segment) => sum + segment.credit * segment.mix, 0);
+  const installmentFactor = (1 - netDefault) / p.commissionInstallments;
+
+  const treatedCum = new Array(months + 1).fill(0);
+  const sales = new Array(months + 1).fill(0);
+  const production = new Array(months + 1).fill(0);
+  const partnerObligation = new Array(months + 1).fill(0);
+  const astrionObligation = new Array(months + 1).fill(0);
+  const partnerPayment = new Array(months + 1).fill(0);
+  const astrionPayment = new Array(months + 1).fill(0);
+  const activeTotal = new Array(months + 1).fill(0);
+  const newTA = Object.fromEntries(p.segments.map(segment => [segment.name, new Array(months + 1).fill(0)]));
+  const taBalance = Object.fromEntries(p.segments.map(segment => [segment.name, new Array(months + 1).fill(0)]));
+  const active = Object.fromEntries(p.segments.map(segment => [segment.name, new Array(months + 1).fill(0)]));
+
+  const capexD0 = p.squadFte * p.squadCostPerFte * p.setupMonths + p.capexNonPersonnel;
+  let vplIncremental = -capexD0;
+  let cumulativeVpIncremental = -capexD0;
+  let cumulativeVpFullTaxShield = -capexD0;
+  let paybackIncremental = null;
+  let paybackFull = null;
+  let pvInsideSales = 0;
+  let totalProduction = 0;
+  let totalTaNominal = 0;
+  let totalAstrionObligation = 0;
+  let totalAstrionCash = 0;
+  let totalPartnerObligation = 0;
+  let totalTreated = 0;
+  let totalSales = 0;
+  let year1Production = 0;
+  let year1Ta = 0;
+  let year1AstrionObligation = 0;
+
+  for (let month = 1; month <= months; month++) {
+    let treated = 0;
+    let monthSales = 0;
+    let monthProduction = 0;
+    let growthFactor = 0;
+
+    if (month <= p.salesMonths) {
+      const ramp = p.ramp[Math.min(month, p.ramp.length) - 1];
+      const seasonality = p.seasonality[(month - 1) % 12];
+      treated = Math.max(0, Math.min(capacity * ramp, base - treatedCum[month - 1]));
+      treatedCum[month] = treatedCum[month - 1] + treated;
+      monthSales = treated * p.conversionRate * seasonality;
+      growthFactor = Math.pow(1 + p.creditGrowthAnnual, (month - 1) / 12);
+      monthProduction = monthSales * weightedTicket * growthFactor;
+    } else {
+      treatedCum[month] = treatedCum[month - 1];
+    }
+
+    sales[month] = monthSales;
+    production[month] = monthProduction;
+    totalTreated += treated;
+    totalSales += monthSales;
+    totalProduction += monthProduction;
+
+    let monthTaRevenue = 0;
+    let monthActiveTotal = 0;
+
+    p.segments.forEach(segment => {
+      const newTa = monthSales * segment.mix * segment.credit * growthFactor * segment.adminRate / segment.term * retentionEconomic;
+      newTA[segment.name][month] = newTa;
+      const expiryMonth = month - segment.term;
+      const expiredTa = expiryMonth >= 1 ? newTA[segment.name][expiryMonth] * Math.pow(monthlyGrowth, segment.term) : 0;
+      taBalance[segment.name][month] = taBalance[segment.name][month - 1] * monthlyGrowth + newTa - expiredTa;
+
+      const expiredActive = expiryMonth >= 1 ? sales[expiryMonth] * segment.mix * (1 - p.cancellationLifetime) : 0;
+      active[segment.name][month] = active[segment.name][month - 1] + monthSales * segment.mix * (1 - p.cancellationLifetime) - expiredActive;
+
+      monthTaRevenue += taBalance[segment.name][month];
+      monthActiveTotal += active[segment.name][month];
+    });
+
+    activeTotal[month] = monthActiveTotal;
+    totalTaNominal += monthTaRevenue;
+
+    partnerObligation[month] = month <= p.salesMonths ? partnerCommissionObligation(monthProduction) : 0;
+    astrionObligation[month] = month <= p.salesMonths ? monthProduction * p.astrionRate : 0;
+    totalPartnerObligation += partnerObligation[month];
+    totalAstrionObligation += astrionObligation[month];
+
+    const prior = month - 1;
+    const expiredInstallment = month - 11;
+    partnerPayment[month] = partnerPayment[month - 1]
+      + (prior >= 0 ? partnerObligation[prior] : 0) * installmentFactor
+      - (expiredInstallment >= 0 ? partnerObligation[expiredInstallment] : 0) * installmentFactor;
+    astrionPayment[month] = astrionPayment[month - 1]
+      + (prior >= 0 ? astrionObligation[prior] : 0) * installmentFactor
+      - (expiredInstallment >= 0 ? astrionObligation[expiredInstallment] : 0) * installmentFactor;
+    totalAstrionCash += astrionPayment[month];
+
+    const squadOpex = month <= p.salesMonths
+      ? p.squadFte * p.squadCostPerFte
+      : (monthActiveTotal > 0 ? p.squadFte * p.squadCostPerFte * p.squadRunoffRate : 0);
+    const additionalOpex = monthActiveTotal > 0 ? p.opexIncrementalAdditional : 0;
+    const insideSalesCost = month <= p.salesMonths ? p.operators * p.operatorCostMonth : 0;
+    const runoffCost = monthActiveTotal * p.costPerActiveQuota;
+    const revenueTax = monthTaRevenue * p.revenueTaxRate;
+
+    const ebtIncremental = monthTaRevenue - partnerPayment[month] - astrionPayment[month] - squadOpex - additionalOpex - runoffCost - revenueTax;
+    const incomeTaxIncremental = Math.max(0, ebtIncremental) * p.incomeTaxRate;
+    const fcfIncremental = ebtIncremental - incomeTaxIncremental;
+
+    const ebtFullTaxShield = ebtIncremental - insideSalesCost;
+    const incomeTaxFull = Math.max(0, ebtFullTaxShield) * p.incomeTaxRate;
+    const fcfFullTaxShield = ebtFullTaxShield - incomeTaxFull;
+
+    const discountFactor = 1 / Math.pow(1 + p.discountRateAnnual, month / 12);
+    const vpIncremental = fcfIncremental * discountFactor;
+    const vpFullTaxShield = fcfFullTaxShield * discountFactor;
+
+    vplIncremental += vpIncremental;
+    cumulativeVpIncremental += vpIncremental;
+    cumulativeVpFullTaxShield += vpFullTaxShield;
+    pvInsideSales += insideSalesCost * discountFactor;
+
+    if (paybackIncremental === null && cumulativeVpIncremental >= 0) paybackIncremental = month;
+    if (paybackFull === null && cumulativeVpFullTaxShield >= 0) paybackFull = month;
+
+    if (month <= 12) {
+      year1Production += monthProduction;
+      year1Ta += monthTaRevenue;
+      year1AstrionObligation += astrionObligation[month];
+    }
+  }
+
+  const result = {
+    base,
+    treatedClients: totalTreated,
+    coverageRate: base ? totalTreated / base : 0,
+    quotasSold: totalSales,
+    productionHorizon: totalProduction,
+    productionAverageMonth: totalProduction / p.salesMonths,
+    taNominalHorizon: totalTaNominal,
+    astrionRevenue: totalAstrionObligation,
+    astrionCashExpected: totalAstrionCash,
+    partnerCommissionObligation: totalPartnerObligation,
+    vplIncremental,
+    vplFullyLoaded: vplIncremental - pvInsideSales,
+    paybackIncremental,
+    paybackFull,
+    year1Production,
+    year1Ta,
+    year1AstrionRevenue: year1AstrionObligation,
+    capacityClients: capacity,
+    maxTreatableClients: p.operators * p.clientsPerOperatorMonth * p.salesMonths,
+    effectiveTreatableClients: totalTreated,
+    capacityLimited: totalTreated < base
+  };
+
+  standardModelCache.set(cacheKey, result);
+  return result;
+}
+
 function dashboardScenario(opportunity) {
   const base = Number(opportunity?.client_base || 0);
   const probability = Number(opportunity?.probability || 0);
@@ -347,15 +553,11 @@ function dashboardScenario(opportunity) {
       opportunity,
       method: "OURIBANK",
       base,
-      treatedMonthly: null,
-      conversionsMonthly: null,
-      productionMonthly: null,
-      productionAnnual: null,
-      adminEconomicsAnnual: null,
       astrionRevenue: astrion,
       weightedRevenue: astrion * probability / 100,
       probability,
-      economics
+      economics,
+      model: null
     };
   }
 
@@ -364,38 +566,24 @@ function dashboardScenario(opportunity) {
       opportunity,
       method: "MISSING_BASE",
       base: 0,
-      treatedMonthly: 0,
-      conversionsMonthly: 0,
-      productionMonthly: 0,
-      productionAnnual: 0,
-      adminEconomicsAnnual: 0,
       astrionRevenue: 0,
       weightedRevenue: 0,
       probability,
-      economics
+      economics,
+      model: null
     };
   }
 
-  const treatedMonthly = base * DASHBOARD_ASSUMPTIONS.treatmentRate;
-  const conversionsMonthly = treatedMonthly * DASHBOARD_ASSUMPTIONS.conversionRate;
-  const productionMonthly = conversionsMonthly * DASHBOARD_ASSUMPTIONS.averageTicket;
-  const productionAnnual = productionMonthly * 12;
-  const adminEconomicsAnnual = productionAnnual * DASHBOARD_ASSUMPTIONS.adminFeeRate;
-  const astrionRevenue = productionAnnual * DASHBOARD_ASSUMPTIONS.astrionRate;
-
+  const model = simulateStandardModel(base);
   return {
     opportunity,
-    method: "PAGBANK_LIKE",
+    method: "STANDARD_10Y",
     base,
-    treatedMonthly,
-    conversionsMonthly,
-    productionMonthly,
-    productionAnnual,
-    adminEconomicsAnnual,
-    astrionRevenue,
-    weightedRevenue: astrionRevenue * probability / 100,
+    astrionRevenue: model.astrionRevenue,
+    weightedRevenue: model.astrionRevenue * probability / 100,
     probability,
-    economics
+    economics,
+    model
   };
 }
 
