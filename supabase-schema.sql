@@ -887,3 +887,48 @@ set defaults = jsonb_build_object(
     description = 'Estimativa padronizada para oportunidades ainda sem BP: escala linear pela base de clientes, sem teto artificial de operadores.',
     source_note = 'Premissas Astrion: 0,04% da base tratada/mês; conversão 1,5%; ticket R$ 95.243; TA 17%; remuneração Astrion 0,25% da produção. Usar apenas até existir BP específico.'
 where model_key = 'astrion_consorcios_padrao';
+
+
+-- 9. Modelo econômico padronizado de 10 anos --------------------------------
+-- Para oportunidades de consórcios, as premissas são únicas e centralizadas.
+-- O único input econômico por parceiro é a quantidade de clientes.
+-- Ouribank administradora própria permanece como exceção com BP específico.
+
+update public.economic_models
+set name='Consórcios | Modelo econômico 10 anos',
+    family='Consórcios',
+    description='Motor econômico padronizado de 10 anos. Entre oportunidades varia somente a quantidade de clientes.',
+    defaults=jsonb_build_object(
+      'sales_months',120,
+      'max_product_term',216,
+      'operators',50,
+      'clients_per_operator_month',250,
+      'operator_cost_month',7000,
+      'ramp_months',6,
+      'conversion_rate',1.75,
+      'cancellation_lifetime',15,
+      'default_rate',2.35,
+      'cure_rate',50,
+      'credit_growth_annual',4.5,
+      'discount_rate_annual',18,
+      'revenue_tax_rate',11.25,
+      'income_tax_rate',34,
+      'astrion_rate',0.25,
+      'commission_installments',10,
+      'squad_fte',6,
+      'squad_cost_per_fte',25000,
+      'setup_months',6,
+      'capex_non_personnel',400000,
+      'squad_runoff_rate',30,
+      'initial_weighted_ticket',87389.636180473
+    ),
+    source_note='Modelo Astrion de valuation de consórcios: 120 meses de novas vendas, capacidade de 12.500 clientes/mês, ramp-up de 6 meses, conversão de 1,75%, sazonalidade, reajuste nominal de 4,5% a.a. e run-off integral.',
+    active=true,
+    sort_order=10,
+    updated_at=now()
+where model_key='astrion_consorcios_padrao';
+
+update public.economic_models
+set active = (model_key in ('astrion_consorcios_padrao','ouribank_adm_propria')),
+    updated_at=now()
+where model_key <> 'astrion_consorcios_padrao' or active is distinct from true;
