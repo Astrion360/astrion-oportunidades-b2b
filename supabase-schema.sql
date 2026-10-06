@@ -843,3 +843,10 @@ for each row execute procedure private.set_updated_at();
 
 create index if not exists opportunity_economics_model_key_idx
 on public.opportunity_economics(model_key);
+
+
+create index if not exists access_allowlist_created_by_idx
+on public.access_allowlist(created_by);
+
+create index if not exists opportunity_economics_updated_by_idx
+on public.opportunity_economics(updated_by);
