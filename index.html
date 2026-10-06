@@ -6,12 +6,14 @@
   <meta name="theme-color" content="#071b4d">
   <meta name="description" content="Gestão de oportunidades B2B da Astrion Assessoria.">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://tyakaqlnmfigtyeqmffy.supabase.co wss://tyakaqlnmfigtyeqmffy.supabase.co; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://tyakaqlnmfigtyeqmffy.supabase.co wss://tyakaqlnmfigtyeqmffy.supabase.co; img-src 'self' data: https://www.google.com https://*.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self';">
   <title>Astrion | Oportunidades B2B</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">\n  <link rel="stylesheet" href="economics.css">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="economics.css">
+  <link rel="stylesheet" href="executive.css">
 </head>
 <body>
   <div id="auth-screen" class="auth-screen hidden" aria-live="polite">
@@ -110,34 +112,121 @@
       </div>
 
       <section id="view-dashboard" class="view active manager-only">
-        <div class="section-intro">
-          <div><span class="eyebrow">Panorama comercial</span><h2>Decisões e próximos passos em um só lugar.</h2></div>
-          <div class="date-chip" id="today-chip"></div>
+        <div class="executive-head">
+          <div>
+            <span class="eyebrow">Cockpit executivo</span>
+            <h2>Carteira B2B Astrion</h2>
+            <p>Visão econômica, comercial e operacional consolidada. Todas as oportunidades são comparadas pela régua PagBank; Ouribank permanece no BP próprio.</p>
+          </div>
+          <div class="executive-head__right">
+            <span class="method-chip">Régua PagBank · cenário base</span>
+            <div class="date-chip" id="today-chip"></div>
+          </div>
         </div>
 
-        <div class="kpi-grid">
-          <article class="kpi-card kpi-card--primary"><span class="kpi-label">Receita Astrion identificada</span><strong id="kpi-potential">R$ 0</strong><small id="kpi-potential-detail">0 oportunidades ativas</small><span class="kpi-mark">R$</span></article>
-          <article class="kpi-card"><span class="kpi-label">Pipeline ponderado</span><strong id="kpi-weighted">R$ 0</strong><small>Valor × probabilidade</small><span class="kpi-line"></span></article>
-          <article class="kpi-card"><span class="kpi-label">Próximas ações</span><strong id="kpi-next">0</strong><small>Nos próximos 7 dias</small><span class="kpi-line kpi-line--cyan"></span></article>
-          <article class="kpi-card" id="overdue-card"><span class="kpi-label">Atenção necessária</span><strong id="kpi-overdue">0</strong><small>Ações atrasadas</small><span class="kpi-line kpi-line--amber"></span></article>
+        <div class="executive-kpis">
+          <article class="executive-kpi executive-kpi--primary">
+            <span class="executive-kpi__label">Receita Astrion total</span>
+            <strong id="kpi-potential">R$ 0</strong>
+            <small id="kpi-potential-detail">Simulações + Ouribank</small>
+            <span class="executive-kpi__tag">TOTAL</span>
+          </article>
+          <article class="executive-kpi">
+            <span class="executive-kpi__label">Pipeline ponderado</span>
+            <strong id="kpi-weighted">R$ 0</strong>
+            <small>Receita × probabilidade comercial</small>
+          </article>
+          <article class="executive-kpi">
+            <span class="executive-kpi__label">Produção mensal simulada</span>
+            <strong id="kpi-production-month">R$ 0</strong>
+            <small>Exceto Ouribank</small>
+          </article>
+          <article class="executive-kpi">
+            <span class="executive-kpi__label">Produção anual simulada</span>
+            <strong id="kpi-production-year">R$ 0</strong>
+            <small>Exceto Ouribank</small>
+          </article>
+          <article class="executive-kpi">
+            <span class="executive-kpi__label">Base mapeada</span>
+            <strong id="kpi-client-base">0</strong>
+            <small id="kpi-client-base-detail">clientes/ecossistema</small>
+          </article>
+          <article class="executive-kpi">
+            <span class="executive-kpi__label">Economia TA anual</span>
+            <strong id="kpi-admin-economics">R$ 0</strong>
+            <small>17,5% sobre produção simulada</small>
+          </article>
+          <article class="executive-kpi">
+            <span class="executive-kpi__label">Oportunidades ativas</span>
+            <strong id="kpi-active-count">0</strong>
+            <small id="kpi-model-coverage">0 com BP/modelo</small>
+          </article>
+          <article class="executive-kpi executive-kpi--attention">
+            <span class="executive-kpi__label">Atenção comercial</span>
+            <strong id="kpi-overdue">0</strong>
+            <small id="kpi-overdue-detail">ações vencidas</small>
+          </article>
         </div>
 
-        <div class="dashboard-grid">
-          <article class="panel panel--wide">
-            <div class="panel__head"><div><span class="eyebrow">Funil ativo</span><h3>Distribuição por etapa</h3></div><button class="text-button go-view" data-target="pipeline">Ver pipeline →</button></div>
+        <div class="methodology-strip">
+          <div><span>Base tratada/mês</span><strong>0,04%</strong></div>
+          <div><span>Conversão</span><strong>1,75%</strong></div>
+          <div><span>Ticket médio</span><strong>R$ 95.243</strong></div>
+          <div><span>TA</span><strong>17,5%</strong></div>
+          <div><span>Astrion</span><strong>0,25%</strong></div>
+          <div><span>Exceção</span><strong>Ouribank · BP próprio</strong></div>
+        </div>
+
+        <div class="executive-grid">
+          <article class="panel executive-panel executive-panel--span-2">
+            <div class="panel__head"><div><span class="eyebrow">Ranking econômico</span><h3>Receita Astrion por oportunidade</h3><p class="panel-subtitle">Simulação PagBank-like; Ouribank usa fee do BP.</p></div><button class="text-button go-view" data-target="pipeline">Abrir pipeline →</button></div>
+            <div id="revenue-ranking" class="ranking-list"></div>
+          </article>
+
+          <article class="panel executive-panel">
+            <div class="panel__head"><div><span class="eyebrow">Saúde comercial</span><h3>Qualidade da carteira</h3></div></div>
+            <div id="health-chart" class="health-chart"></div>
+            <div id="health-score-summary" class="health-score-summary"></div>
+          </article>
+
+          <article class="panel executive-panel">
+            <div class="panel__head"><div><span class="eyebrow">Modelagem</span><h3>Cobertura dos estudos</h3></div></div>
+            <div id="model-coverage-chart" class="coverage-chart"></div>
+          </article>
+
+          <article class="panel executive-panel executive-panel--span-2">
+            <div class="panel__head"><div><span class="eyebrow">Funil ativo</span><h3>Receita por etapa comercial</h3></div><button class="text-button go-view" data-target="pipeline">Ver pipeline →</button></div>
             <div id="funnel-chart" class="funnel-chart"></div>
           </article>
-          <article class="panel">
-            <div class="panel__head"><div><span class="eyebrow">Prioridade</span><h3>Saúde da carteira</h3></div></div>
-            <div id="health-chart" class="health-chart"></div>
+
+          <article class="panel executive-panel executive-panel--span-2">
+            <div class="panel__head"><div><span class="eyebrow">Produção</span><h3>Produção anual simulada por conta</h3><p class="panel-subtitle">Ouribank não participa desta comparação por ter dinâmica própria.</p></div></div>
+            <div id="production-ranking" class="ranking-list ranking-list--compact"></div>
           </article>
-          <article class="panel panel--wide">
-            <div class="panel__head"><div><span class="eyebrow">Ritmo comercial</span><h3>Próximas ações</h3></div><button class="text-button go-view" data-target="agenda">Abrir agenda →</button></div>
+
+          <article class="panel executive-panel ouribank-spotlight">
+            <div class="panel__head"><div><span class="eyebrow">Projeto estratégico</span><h3>Ouribank · administradora própria</h3></div><span class="source-badge source-badge--bp_real">BP REAL</span></div>
+            <div id="ouribank-spotlight" class="ouribank-grid"></div>
+          </article>
+
+          <article class="panel executive-panel">
+            <div class="panel__head"><div><span class="eyebrow">Ritmo comercial</span><h3>Próximas ações</h3></div><button class="text-button go-view" data-target="agenda">Agenda →</button></div>
             <div id="next-actions" class="action-list"></div>
           </article>
-          <article class="panel">
-            <div class="panel__head"><div><span class="eyebrow">Qualidade</span><h3>Alertas do pipeline</h3></div></div>
+
+          <article class="panel executive-panel">
+            <div class="panel__head"><div><span class="eyebrow">Governança</span><h3>Alertas do pipeline</h3></div></div>
             <div id="pipeline-alerts" class="alert-list"></div>
+          </article>
+
+          <article class="panel executive-panel executive-panel--full">
+            <div class="panel__head"><div><span class="eyebrow">Carteira priorizada</span><h3>Ranking executivo de oportunidades</h3><p class="panel-subtitle">Base, produção, receita, probabilidade e saúde comercial em uma única leitura.</p></div></div>
+            <div class="table-scroll executive-table-wrap">
+              <table class="executive-table">
+                <thead><tr><th>Conta</th><th>Origem</th><th>Base</th><th>Produção/mês</th><th>Receita Astrion</th><th>Prob.</th><th>Ponderado</th><th>Saúde</th></tr></thead>
+                <tbody id="executive-ranking-table"></tbody>
+              </table>
+            </div>
           </article>
         </div>
       </section>
