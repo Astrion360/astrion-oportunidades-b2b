@@ -30,6 +30,7 @@ const state = {
   activities: [],
   history: [],
   accessAllowlist: [],
+  economicModels: [],
   view: "dashboard",
   search: "",
   priority: "",
@@ -156,9 +157,12 @@ async function initialize() {
       await hydrateOnline(session.user);
     } catch (error) {
       console.error(error);
-      toast("Não foi possível conectar à base. O modo demonstração foi ativado.", "error");
       state.online = false;
-      loadDemo();
+      showAuth();
+      $("#auth-title").textContent = "Base indisponível";
+      $("#auth-subtitle").textContent = "Não foi possível conectar à base compartilhada. Nenhum dado de demonstração foi carregado.";
+      toast("Falha de conexão com a base. Tente novamente em instantes.", "error");
+      return;
     }
   } else {
     loadDemo();
@@ -175,16 +179,28 @@ async function hydrateOnline(user) {
 }
 
 async function refreshOnlineData() {
-  const queries = [
+  const [opportunitiesResult, profilesResult] = await Promise.all([
     state.supabase.from("opportunities").select("*").order("updated_at", { ascending: false }),
     state.supabase.from("profiles").select("*").order("full_name")
-  ];
-  if (roleIsAdmin()) queries.push(state.supabase.from("access_allowlist").select("*").order("created_at", { ascending: false }));
-  const [opportunitiesResult, profilesResult, allowlistResult] = await Promise.all(queries);
+  ]);
   if (opportunitiesResult.error) throw opportunitiesResult.error;
   state.opportunities = opportunitiesResult.data || [];
   state.profiles = profilesResult.error ? [state.profile] : (profilesResult.data || [state.profile]);
-  state.accessAllowlist = allowlistResult?.error ? [] : (allowlistResult?.data || []);
+
+  if (roleIsManager()) {
+    const { data, error } = await state.supabase.from("economic_models").select("*").eq("active", true).order("sort_order");
+    if (error) throw error;
+    state.economicModels = data || [];
+  } else {
+    state.economicModels = [];
+  }
+
+  if (roleIsAdmin()) {
+    const { data, error } = await state.supabase.from("access_allowlist").select("*").order("created_at", { ascending: false });
+    state.accessAllowlist = error ? [] : (data || []);
+  } else {
+    state.accessAllowlist = [];
+  }
 }
 
 function showAuth() {
@@ -331,7 +347,7 @@ function renderPipeline() {
 
 function kanbanCardTemplate(opportunity) {
   const owner = ownerFor(opportunity.owner_id);
-  return `<article class="kanban-card open-detail" draggable="true" data-id="${opportunity.id}"><div class="kanban-card__top"><span class="company-initial">${initials(opportunity.company)}</span><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><h4>${escapeHTML(opportunity.company)}</h4><span class="contact-line">${escapeHTML(opportunity.contact_name || opportunity.segment || "Contato a confirmar")}</span><p class="summary-line">${escapeHTML(opportunity.summary)}</p><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span><span>${escapeHTML(owner?.full_name || "A definir")}</span></div><div class="kanban-card__meta"><strong>${currency.format(Number(opportunity.potential_revenue || 0))}</strong><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></div></article>`;
+  return `<article class="kanban-card open-detail" draggable="true" data-id="${opportunity.id}"><div class="kanban-card__top"><span class="company-initial">${initials(opportunity.company)}</span><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><h4>${escapeHTML(opportunity.company)}</h4><span class="contact-line">${escapeHTML(opportunity.contact_name || opportunity.segment || "Contato a confirmar")}</span><p class="summary-line">${escapeHTML(opportunity.summary)}</p><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span><span>${escapeHTML(owner?.full_name || "A definir")}</span></div><div class="kanban-card__meta"><strong>${money(opportunity.potential_revenue)}</strong><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></div></article>`;
 }
 
 function bindKanbanDrag() {
@@ -363,12 +379,12 @@ function renderOpportunityTable() {
 function opportunityRowTemplate(opportunity) {
   const meta = statusMeta(opportunity.status);
   const owner = ownerFor(opportunity.owner_id);
-  return `<tr class="open-detail" data-id="${opportunity.id}"><td><div class="company-cell"><span class="company-initial">${initials(opportunity.company)}</span><div><strong>${escapeHTML(opportunity.company)}</strong><small>${escapeHTML(opportunity.summary)}</small></div></div></td><td><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span></td><td><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></td><td><strong>${currency.format(Number(opportunity.potential_revenue || 0))}</strong></td><td><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span>${escapeHTML(owner?.full_name || "A definir")}</div></td><td><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></td><td><button class="row-action" aria-label="Abrir oportunidade">→</button></td></tr>`;
+  return `<tr class="open-detail" data-id="${opportunity.id}"><td><div class="company-cell"><span class="company-initial">${initials(opportunity.company)}</span><div><strong>${escapeHTML(opportunity.company)}</strong><small>${escapeHTML(opportunity.summary)}</small></div></div></td><td><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span></td><td><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></td><td><strong>${money(opportunity.potential_revenue)}</strong></td><td><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span>${escapeHTML(owner?.full_name || "A definir")}</div></td><td><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></td><td><button class="row-action" aria-label="Abrir oportunidade">→</button></td></tr>`;
 }
 
 function mobileOpportunityTemplate(opportunity) {
   const meta = statusMeta(opportunity.status);
-  return `<article class="mobile-record open-detail" data-id="${opportunity.id}"><div class="mobile-record__head"><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><h3>${escapeHTML(opportunity.company)}</h3><p>${escapeHTML(opportunity.summary)}</p><div class="mobile-record__foot"><strong>${currency.format(Number(opportunity.potential_revenue || 0))}</strong><span>${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></div></article>`;
+  return `<article class="mobile-record open-detail" data-id="${opportunity.id}"><div class="mobile-record__head"><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><h3>${escapeHTML(opportunity.company)}</h3><p>${escapeHTML(opportunity.summary)}</p><div class="mobile-record__foot"><strong>${money(opportunity.potential_revenue)}</strong><span>${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></div></article>`;
 }
 
 function calendarEvents() {
@@ -602,17 +618,218 @@ async function deleteOpportunity(id) {
   } catch (error) { handleError(error); }
 }
 
+
+const numericOrNull = value => value === "" || value === null || value === undefined ? null : Number(value);
+const percent = value => value === null || value === undefined || value === "" ? "—" : `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 4 }).format(Number(value))}%`;
+
+function economicModelFor(key) {
+  return state.economicModels.find(model => model.model_key === key) || null;
+}
+
+function calculateEconomics(economic = {}, opportunity = {}) {
+  const baseClients = Number(economic.base_clients ?? opportunity.client_base ?? 0);
+  const treatmentRate = Number(economic.treatment_rate_month || 0);
+  const fteCount = Number(economic.fte_count || 0);
+  const clientsPerFte = Number(economic.clients_per_fte_month || 0);
+  const conversionRate = Number(economic.conversion_rate || 0);
+  const averageTicket = Number(economic.average_ticket || 0);
+  const adminFeeRate = Number(economic.admin_fee_rate || 0);
+  const astrionRate = Number(economic.astrion_revenue_rate || 0);
+  const upfrontFee = Number(economic.upfront_fee || 0);
+  const months = Number(economic.projection_months || 0);
+  const capex = Number(economic.capex || 0);
+  const monthlyOpex = Number(economic.monthly_opex || 0);
+  const accessoryMonthlyRevenue = Number(economic.accessory_monthly_revenue || 0);
+
+  const coverageCapacity = baseClients > 0 && treatmentRate > 0 ? baseClients * treatmentRate / 100 : 0;
+  const fteCapacity = fteCount > 0 && clientsPerFte > 0 ? fteCount * clientsPerFte : 0;
+  let treatedClients = 0;
+  if (coverageCapacity > 0 && fteCapacity > 0) treatedClients = Math.min(coverageCapacity, fteCapacity);
+  else treatedClients = coverageCapacity || fteCapacity || 0;
+
+  const conversions = treatedClients * conversionRate / 100;
+  const monthlyProduction = conversions * averageTicket;
+  const monthlyAdminEconomics = monthlyProduction * adminFeeRate / 100;
+  const monthlyAstrionRevenue = monthlyProduction * astrionRate / 100;
+  const astrionRevenueHorizon = monthlyAstrionRevenue * months + upfrontFee;
+  const simpleOperatingResult = monthlyAdminEconomics + accessoryMonthlyRevenue - monthlyOpex;
+  const simplePayback = capex > 0 && simpleOperatingResult > 0 ? capex / simpleOperatingResult : null;
+
+  return {
+    treatedClients, conversions, monthlyProduction, monthlyAdminEconomics,
+    monthlyAstrionRevenue, astrionRevenueHorizon, simpleOperatingResult, simplePayback
+  };
+}
+
+function economicSummaryTemplate(economic, opportunity) {
+  if (!roleIsManager()) return "";
+  if (!economic) {
+    return `<section class="detail-section detail-section--economics"><div class="detail-section__head"><div><h3>Modelo econômico</h3><p>Associe esta oportunidade a um dos modelos Astrion para separar produção, economia do parceiro e receita efetiva da Astrion.</p></div><button class="btn btn--primary btn--small" id="edit-economics" data-id="${opportunity.id}">Criar modelo</button></div></section>`;
+  }
+  const model = economicModelFor(economic.model_key);
+  const out = calculateEconomics(economic, opportunity);
+  const isOwnAdmin = model?.family === "Administradora própria";
+  return `<section class="detail-section detail-section--economics">
+    <div class="detail-section__head"><div><span class="eyebrow">Modelo econômico</span><h3>${escapeHTML(model?.name || economic.model_key)}</h3><p>${escapeHTML(model?.description || "")}</p></div><button class="btn btn--ghost btn--small" id="edit-economics" data-id="${opportunity.id}">Editar premissas</button></div>
+    <div class="economic-summary-grid">
+      <div><small>Clientes tratados / mês</small><strong>${number.format(Math.round(out.treatedClients))}</strong></div>
+      <div><small>Conversões / mês</small><strong>${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(out.conversions)}</strong></div>
+      <div><small>Produção / mês</small><strong>${currency.format(out.monthlyProduction)}</strong></div>
+      <div><small>TA econômica / mês</small><strong>${currency.format(out.monthlyAdminEconomics)}</strong></div>
+      <div><small>Receita Astrion / mês</small><strong>${economic.astrion_revenue_rate == null ? "—" : currency.format(out.monthlyAstrionRevenue)}</strong></div>
+      <div><small>Receita Astrion no horizonte</small><strong>${economic.astrion_revenue_rate == null && !Number(economic.upfront_fee || 0) ? "—" : currency.format(out.astrionRevenueHorizon)}</strong></div>
+      ${isOwnAdmin ? `<div><small>Resultado operacional simples / mês</small><strong>${currency.format(out.simpleOperatingResult)}</strong></div><div><small>Payback simples</small><strong>${out.simplePayback == null ? "—" : `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(out.simplePayback)} meses`}</strong></div>` : ""}
+    </div>
+    <div class="economic-assumptions"><span>Conversão ${percent(economic.conversion_rate)}</span><span>Ticket ${money(economic.average_ticket)}</span><span>TA ${percent(economic.admin_fee_rate)}</span><span>Astrion ${percent(economic.astrion_revenue_rate)}</span><span>Horizonte ${economic.projection_months || "—"} meses</span></div>
+    ${model?.source_note ? `<p class="economic-source"><strong>Referência:</strong> ${escapeHTML(model.source_note)}</p>` : ""}
+  </section>`;
+}
+
+function populateEconomicModelOptions(selected = "") {
+  const select = $("#economic-model-key");
+  if (!select) return;
+  select.innerHTML = `<option value="">Selecione um modelo</option>${state.economicModels.map(model => `<option value="${escapeHTML(model.model_key)}">${escapeHTML(model.name)}</option>`).join("")}`;
+  select.value = selected || "";
+}
+
+function openEconomicsModal(opportunity, economic = null) {
+  if (!roleIsManager()) return;
+  $("#economics-form").reset();
+  $("#economics-opportunity-id").value = opportunity.id;
+  populateEconomicModelOptions(economic?.model_key || "");
+  const map = {
+    "economic-base-clients": economic?.base_clients ?? opportunity.client_base ?? "",
+    "economic-treatment-rate": economic?.treatment_rate_month ?? "",
+    "economic-fte-count": economic?.fte_count ?? "",
+    "economic-clients-per-fte": economic?.clients_per_fte_month ?? "",
+    "economic-conversion-rate": economic?.conversion_rate ?? "",
+    "economic-average-ticket": economic?.average_ticket ?? "",
+    "economic-admin-fee-rate": economic?.admin_fee_rate ?? "",
+    "economic-astrion-rate": economic?.astrion_revenue_rate ?? "",
+    "economic-upfront-fee": economic?.upfront_fee ?? "",
+    "economic-projection-months": economic?.projection_months ?? "",
+    "economic-capex": economic?.capex ?? "",
+    "economic-monthly-opex": economic?.monthly_opex ?? "",
+    "economic-accessory-revenue": economic?.accessory_monthly_revenue ?? "",
+    "economic-notes": economic?.notes ?? ""
+  };
+  Object.entries(map).forEach(([id, value]) => { $("#" + id).value = value; });
+  if (!economic && state.economicModels.length) {
+    const preferred = opportunity.interests?.includes("Consórcios") ? "astrion_consorcios_padrao" : "custom";
+    $("#economic-model-key").value = state.economicModels.some(m => m.model_key === preferred) ? preferred : state.economicModels[0].model_key;
+    applyEconomicModelDefaults(false);
+  } else {
+    updateEconomicsPreview();
+  }
+  openLayer("economics-modal");
+}
+
+function applyEconomicModelDefaults(preserveCommercialInputs = true) {
+  const model = economicModelFor($("#economic-model-key").value);
+  if (!model) { updateEconomicsPreview(); return; }
+  const defaults = model.defaults || {};
+  const fields = {
+    clients_per_fte_month: "#economic-clients-per-fte",
+    conversion_rate: "#economic-conversion-rate",
+    average_ticket: "#economic-average-ticket",
+    admin_fee_rate: "#economic-admin-fee-rate",
+    astrion_revenue_rate: "#economic-astrion-rate",
+    upfront_fee: "#economic-upfront-fee",
+    projection_months: "#economic-projection-months",
+    capex: "#economic-capex",
+    monthly_opex: "#economic-monthly-opex",
+    accessory_monthly_revenue: "#economic-accessory-revenue"
+  };
+  Object.entries(fields).forEach(([key, selector]) => {
+    if (Object.prototype.hasOwnProperty.call(defaults, key)) $(selector).value = defaults[key];
+    else if (!preserveCommercialInputs) $(selector).value = "";
+  });
+  updateEconomicsPreview();
+}
+
+function economicFormPayload() {
+  return {
+    opportunity_id: $("#economics-opportunity-id").value,
+    model_key: $("#economic-model-key").value,
+    base_clients: numericOrNull($("#economic-base-clients").value),
+    treatment_rate_month: numericOrNull($("#economic-treatment-rate").value),
+    fte_count: numericOrNull($("#economic-fte-count").value),
+    clients_per_fte_month: numericOrNull($("#economic-clients-per-fte").value),
+    conversion_rate: numericOrNull($("#economic-conversion-rate").value),
+    average_ticket: numericOrNull($("#economic-average-ticket").value),
+    admin_fee_rate: numericOrNull($("#economic-admin-fee-rate").value),
+    astrion_revenue_rate: numericOrNull($("#economic-astrion-rate").value),
+    upfront_fee: numericOrNull($("#economic-upfront-fee").value),
+    projection_months: numericOrNull($("#economic-projection-months").value),
+    capex: numericOrNull($("#economic-capex").value),
+    monthly_opex: numericOrNull($("#economic-monthly-opex").value),
+    accessory_monthly_revenue: numericOrNull($("#economic-accessory-revenue").value),
+    notes: $("#economic-notes").value.trim() || null,
+    updated_by: state.currentUser?.id || null
+  };
+}
+
+function updateEconomicsPreview() {
+  const preview = $("#economics-preview");
+  if (!preview) return;
+  const opportunity = state.opportunities.find(item => item.id === $("#economics-opportunity-id").value) || {};
+  const data = economicFormPayload();
+  const model = economicModelFor(data.model_key);
+  const out = calculateEconomics(data, opportunity);
+  $("#economics-model-note").innerHTML = model ? `<strong>${escapeHTML(model.name)}</strong><span>${escapeHTML(model.source_note || model.description || "")}</span>` : "Selecione um modelo de referência.";
+  preview.innerHTML = [
+    ["Tratados / mês", number.format(Math.round(out.treatedClients))],
+    ["Conversões / mês", new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(out.conversions)],
+    ["Produção / mês", currency.format(out.monthlyProduction)],
+    ["TA econômica / mês", currency.format(out.monthlyAdminEconomics)],
+    ["Receita Astrion / mês", data.astrion_revenue_rate == null ? "—" : currency.format(out.monthlyAstrionRevenue)],
+    ["Receita Astrion horizonte", data.astrion_revenue_rate == null && !Number(data.upfront_fee || 0) ? "—" : currency.format(out.astrionRevenueHorizon)]
+  ].map(([label, value]) => `<div><small>${label}</small><strong>${value}</strong></div>`).join("");
+}
+
+async function saveEconomics(event) {
+  event.preventDefault();
+  const payload = economicFormPayload();
+  if (!payload.model_key) { toast("Selecione um modelo econômico.", "error"); return; }
+  const button = $("#save-economics");
+  button.disabled = true;
+  try {
+    if (!state.online) throw new Error("O modelo econômico só pode ser salvo na base compartilhada.");
+    const { error } = await state.supabase.from("opportunity_economics").upsert(payload, { onConflict: "opportunity_id" });
+    if (error) throw error;
+    const opportunity = state.opportunities.find(item => item.id === payload.opportunity_id);
+    const out = calculateEconomics(payload, opportunity || {});
+    const summaryChanges = {};
+    if (out.monthlyProduction > 0) summaryChanges.expected_sales = out.monthlyProduction;
+    if (payload.astrion_revenue_rate != null || Number(payload.upfront_fee || 0) > 0) summaryChanges.potential_revenue = out.astrionRevenueHorizon;
+    if (Object.keys(summaryChanges).length) {
+      const { error: opportunityError } = await state.supabase.from("opportunities").update(summaryChanges).eq("id", payload.opportunity_id);
+      if (opportunityError) throw opportunityError;
+      await refreshOnlineData();
+    }
+    closeLayer("economics-modal");
+    toast("Modelo econômico atualizado.", "success");
+    await openDetail(payload.opportunity_id);
+  } catch (error) { handleError(error); }
+  finally { button.disabled = false; }
+}
+
 async function openDetail(id) {
   const opportunity = state.opportunities.find(item => item.id === id);
   if (!opportunity) return;
-  let activities, history;
+  let activities, history, economics = null;
   if (state.online) {
-    const [activitiesResult, historyResult] = await Promise.all([
+    const economicsQuery = roleIsManager()
+      ? state.supabase.from("opportunity_economics").select("*").eq("opportunity_id", id).maybeSingle()
+      : Promise.resolve({ data: null, error: null });
+    const [activitiesResult, historyResult, economicsResult] = await Promise.all([
       state.supabase.from("activities").select("*").eq("opportunity_id", id).order("activity_date", { ascending: false }),
-      state.supabase.from("opportunity_history").select("*").eq("opportunity_id", id).order("created_at", { ascending: false }).limit(25)
+      state.supabase.from("opportunity_history").select("*").eq("opportunity_id", id).order("created_at", { ascending: false }).limit(25),
+      economicsQuery
     ]);
     activities = activitiesResult.data || [];
     history = historyResult.data || [];
+    economics = economicsResult?.error ? null : (economicsResult?.data || null);
   } else {
     activities = state.activities.filter(item => item.opportunity_id === id);
     history = state.history.filter(item => item.opportunity_id === id);
@@ -626,7 +843,8 @@ async function openDetail(id) {
     ...history.map(item => ({ kind: item.event_type === "created" ? "Cadastro" : "Alteração", text: item.description || historyDescription(item), date: item.created_at, user: ownerName(item.changed_by) }))
   ].sort((a,b) => new Date(b.date) - new Date(a.date));
   $("#detail-content").innerHTML = `
-    <section class="detail-hero"><div class="detail-hero__top"><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><p>${escapeHTML(opportunity.summary)}</p><div class="detail-metrics"><div><small>Potencial</small><strong>${money(opportunity.potential_revenue)}</strong></div><div><small>Produção estimada</small><strong>${money(opportunity.expected_sales)}</strong></div><div><small>Probabilidade</small><strong>${opportunity.probability || 0}%</strong></div><div><small>Ponderado</small><strong>${opportunity.potential_revenue == null ? "—" : currency.format(Number(opportunity.potential_revenue) * Number(opportunity.probability || 0) / 100)}</strong></div></div></section>
+    <section class="detail-hero"><div class="detail-hero__top"><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><p>${escapeHTML(opportunity.summary)}</p><div class="detail-metrics"><div><small>Receita Astrion</small><strong>${money(opportunity.potential_revenue)}</strong></div><div><small>Produção estimada</small><strong>${money(opportunity.expected_sales)}</strong></div><div><small>Probabilidade</small><strong>${opportunity.probability || 0}%</strong></div><div><small>Receita ponderada</small><strong>${opportunity.potential_revenue == null ? "—" : currency.format(Number(opportunity.potential_revenue) * Number(opportunity.probability || 0) / 100)}</strong></div></div></section>
+    ${economicSummaryTemplate(economics, opportunity)}
     ${roleIsManager() ? `<section class="detail-section"><h3>Condução comercial</h3><div class="inline-edit"><label>Etapa<select id="detail-status">${STATUSES.map(item => `<option ${item.value === opportunity.status ? "selected" : ""}>${item.value}</option>`).join("")}</select></label><label>Próxima ação<input id="detail-next-action" value="${escapeHTML(opportunity.next_action || "")}" placeholder="Defina o próximo passo"></label><label>Prazo<input id="detail-next-date" type="datetime-local" value="${toLocalInput(opportunity.next_action_date)}"></label><button class="btn btn--primary btn--small" id="save-quick-update" data-id="${id}">Atualizar condução</button></div></section>` : ""}
     <section class="detail-section"><h3>Empresa e contato</h3><div class="detail-grid"><div><small>CNPJ</small><strong>${escapeHTML(opportunity.cnpj || "Não informado")}</strong></div><div><small>Site</small>${safeHttpUrl(opportunity.website) ? `<a href="${escapeHTML(safeHttpUrl(opportunity.website))}" target="_blank" rel="noopener noreferrer">Abrir site ↗</a>` : "<strong>Não informado</strong>"}</div><div><small>Segmento</small><strong>${escapeHTML(opportunity.segment || "A confirmar")}</strong></div><div><small>Origem</small><strong>${escapeHTML(opportunity.source || "Não informada")}</strong></div><div><small>Contato</small><strong>${escapeHTML(opportunity.contact_name || "A confirmar")}${opportunity.contact_role ? ` · ${escapeHTML(opportunity.contact_role)}` : ""}</strong></div><div><small>E-mail</small>${opportunity.contact_email ? `<a href="mailto:${escapeHTML(opportunity.contact_email)}">${escapeHTML(opportunity.contact_email)}</a>` : "<strong>Não informado</strong>"}</div><div><small>Telefone</small><strong>${escapeHTML(opportunity.contact_phone || "Não informado")}</strong></div><div><small>Base potencial</small><strong>${opportunity.client_base !== null && opportunity.client_base !== undefined ? number.format(opportunity.client_base) : "Não informada"}</strong></div></div></section>
     <section class="detail-section"><h3>Soluções e particularidades</h3><div class="detail-tags">${(opportunity.interests || []).map(item => `<span>${escapeHTML(item)}</span>`).join("") || "<span>A confirmar</span>"}</div><p style="color:var(--ink-500);font-size:10px;line-height:1.6;margin:12px 0 0">${escapeHTML(opportunity.particularities || "Nenhuma particularidade registrada.")}</p></section>
@@ -635,7 +853,7 @@ async function openDetail(id) {
     <section class="detail-section"><h3>Histórico</h3><div class="timeline">${timeline.length ? timeline.map(item => `<div class="timeline-item"><strong>${escapeHTML(item.kind)}</strong><p>${escapeHTML(item.text)}</p><time>${formatDate(item.date, { time: true, year: true })} · ${escapeHTML(item.user)}</time></div>`).join("") : emptyTemplate("Ainda não há movimentações.")}</div></section>
     <div class="detail-actions">${roleIsManager() ? `<button class="btn btn--ghost" id="edit-opportunity" data-id="${id}">Editar cadastro</button>` : ""}${roleIsAdmin() ? `<button class="btn btn--danger" id="delete-opportunity" data-id="${id}">Excluir</button>` : ""}</div>`;
   openLayer("detail-drawer");
-  bindDetailActions(id);
+  bindDetailActions(id, economics);
 }
 
 function historyDescription(item) {
@@ -643,8 +861,9 @@ function historyDescription(item) {
   return item.event_type === "created" ? "Oportunidade cadastrada" : "Cadastro atualizado";
 }
 
-function bindDetailActions(id) {
+function bindDetailActions(id, economics = null) {
   $("#edit-opportunity")?.addEventListener("click", () => { closeLayer("detail-drawer"); openOpportunityModal(state.opportunities.find(item => item.id === id)); });
+  $("#edit-economics")?.addEventListener("click", () => openEconomicsModal(state.opportunities.find(item => item.id === id), economics));
   $("#delete-opportunity")?.addEventListener("click", () => deleteOpportunity(id));
   $("#save-quick-update")?.addEventListener("click", () => {
     const status = $("#detail-status").value;
@@ -737,6 +956,9 @@ function bindEvents() {
   $("#login-form").addEventListener("submit", handleLogin);
   $("#signup-form").addEventListener("submit", handleSignup);
   $("#recovery-form").addEventListener("submit", handleRecoveryPassword);
+  $("#economics-form").addEventListener("submit", saveEconomics);
+  $("#economic-model-key").addEventListener("change", () => applyEconomicModelDefaults(false));
+  $("#economics-form").addEventListener("input", event => { if (event.target.id !== "economic-model-key") updateEconomicsPreview(); });
   $("#logout-button").addEventListener("click", handleLogout);
 }
 
