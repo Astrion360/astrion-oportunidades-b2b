@@ -432,6 +432,8 @@ function renderAccessPanel() {
   const pending = state.accessAllowlist.filter(item => !item.used_at);
   $("#invite-count").textContent = `${pending.length} ${pending.length === 1 ? "convite" : "convites"}`;
   $("#invite-table").innerHTML = pending.length ? pending.map(item => `<tr data-email="${escapeHTML(item.email)}"><td><strong>${escapeHTML(item.full_name || "—")}</strong></td><td>${escapeHTML(item.email)}</td><td>${escapeHTML(ROLE_LABELS[item.role] || item.role)}</td><td><span class="status-pill" style="--status-color:${item.active ? "#079455" : "#98a2b3"}">${item.active ? "Autorizado" : "Suspenso"}</span></td><td class="invite-actions"><button class="row-action copy-invite" title="Copiar link">↗</button><button class="row-action toggle-invite" title="${item.active ? "Suspender" : "Reativar"}">${item.active ? "×" : "✓"}</button></td></tr>`).join("") : `<tr><td colspan="5">${emptyTemplate("Nenhum convite pendente.")}</td></tr>`;
+  $("#invite-form").onsubmit = createAccessInvite;
+  $("#invite-table").onclick = handleInviteAction;
 }
 
 async function createAccessInvite(event) {
