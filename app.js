@@ -561,6 +561,39 @@ function dashboardScenario(opportunity) {
     };
   }
 
+  if (economics?.source_type === "MODELO_ESPECIFICO") {
+    const bp = economics.bp_kpis || {};
+    const model = {
+      treatedClients: bp.clientes_tratados_120m == null ? null : Number(bp.clientes_tratados_120m),
+      coverageRate: bp.cobertura_base == null ? null : Number(bp.cobertura_base),
+      quotasSold: bp.cotas_vendidas_120m == null ? null : Number(bp.cotas_vendidas_120m),
+      productionHorizon: Number(economics.horizon_production ?? opportunity?.expected_sales ?? 0),
+      taNominalHorizon: Number(economics.horizon_operation_revenue ?? 0),
+      astrionRevenue: Number(economics.horizon_astrion_revenue ?? opportunity?.potential_revenue ?? 0),
+      astrionCashExpected: Number(bp.caixa_astrion_esperado ?? economics.horizon_astrion_revenue ?? opportunity?.potential_revenue ?? 0),
+      partnerCommissionObligation: null,
+      vplIncremental: bp.vpl_incremental == null ? null : Number(bp.vpl_incremental),
+      vplFullyLoaded: bp.vpl_fully_loaded == null ? null : Number(bp.vpl_fully_loaded),
+      paybackIncremental: bp.payback_incremental_mes == null ? null : Number(bp.payback_incremental_mes),
+      paybackFull: bp.payback_fully_loaded_mes == null ? null : Number(bp.payback_fully_loaded_mes),
+      year1Production: Number(economics.year1_production ?? 0),
+      year1Ta: Number(economics.year1_operation_revenue ?? 0),
+      year1AstrionRevenue: Number(economics.year1_astrion_revenue ?? 0),
+      capacityClients: null,
+      capacityLimited: null
+    };
+    return {
+      opportunity,
+      method: "MODEL_SPECIFIC",
+      base,
+      astrionRevenue: model.astrionRevenue,
+      weightedRevenue: model.astrionRevenue * probability / 100,
+      probability,
+      economics,
+      model
+    };
+  }
+
   if (!base) {
     return {
       opportunity,
@@ -622,48 +655,56 @@ function renderDashboard() {
   const active = state.opportunities.filter(opportunity => !["Ganha", "Perdida", "Pausada"].includes(opportunity.status));
   const scenarios = active.map(dashboardScenario);
   const standard = scenarios.filter(item => item.method === "STANDARD_10Y");
+  const specific = scenarios.filter(item => item.method === "MODEL_SPECIFIC");
+  const modeled = [...standard, ...specific];
   const ouribank = scenarios.find(item => item.method === "OURIBANK");
   const missingBase = scenarios.filter(item => item.method === "MISSING_BASE");
 
-  const standardAstrion = standard.reduce((sum, item) => sum + item.model.astrionRevenue, 0);
+  const standardAstrion = standard.reduce((sum, item) => sum + Number(item.model.astrionRevenue || 0), 0);
+  const specificAstrion = specific.reduce((sum, item) => sum + Number(item.model.astrionRevenue || 0), 0);
   const ouribankRevenue = ouribank?.astrionRevenue || 0;
-  const totalRevenue = standardAstrion + ouribankRevenue;
+  const totalRevenue = standardAstrion + specificAstrion + ouribankRevenue;
   const weighted = scenarios.reduce((sum, item) => sum + item.weightedRevenue, 0);
-  const productionHorizon = standard.reduce((sum, item) => sum + item.model.productionHorizon, 0);
-  const taNominalHorizon = standard.reduce((sum, item) => sum + item.model.taNominalHorizon, 0);
-  const vplIncremental = standard.reduce((sum, item) => sum + item.model.vplIncremental, 0);
-  const vplFullyLoaded = standard.reduce((sum, item) => sum + item.model.vplFullyLoaded, 0);
-  const treatedClients = standard.reduce((sum, item) => sum + item.model.treatedClients, 0);
-  const quotasSold = standard.reduce((sum, item) => sum + item.model.quotasSold, 0);
-  const mappedBase = standard.reduce((sum, item) => sum + item.base, 0);
-  const partnerCommission = standard.reduce((sum, item) => sum + item.model.partnerCommissionObligation, 0);
+  const productionHorizon = modeled.reduce((sum, item) => sum + Number(item.model.productionHorizon || 0), 0);
+  const taNominalHorizon = modeled.reduce((sum, item) => sum + Number(item.model.taNominalHorizon || 0), 0);
+  const vplIncremental = standard.reduce((sum, item) => sum + Number(item.model.vplIncremental || 0), 0);
+  const vplFullyLoaded = standard.reduce((sum, item) => sum + Number(item.model.vplFullyLoaded || 0), 0);
+  const treatedClients = standard.reduce((sum, item) => sum + Number(item.model.treatedClients || 0), 0);
+  const quotasSold = modeled.reduce((sum, item) => sum + Number(item.model.quotasSold || 0), 0);
+  const mappedBase = modeled.reduce((sum, item) => sum + item.base, 0);
+  const treatedBase = standard.reduce((sum, item) => sum + item.base, 0);
+  const partnerCommission = standard.reduce((sum, item) => sum + Number(item.model.partnerCommissionObligation || 0), 0);
 
   const inSevenDays = new Date(Date.now() + 7 * 86400000);
   const nextCount = active.filter(opportunity => opportunity.next_action_date && new Date(opportunity.next_action_date) >= new Date() && new Date(opportunity.next_action_date) <= inSevenDays).length;
   const overdue = active.filter(isOverdue);
 
   $("#kpi-potential").textContent = currency.format(totalRevenue);
-  $("#kpi-potential-detail").textContent = `${currency.format(standardAstrion)} das operações de consórcios + ${currency.format(ouribankRevenue)} do BP próprio Ouribank`;
+  $("#kpi-potential-detail").textContent = `${currency.format(standardAstrion)} modelo padrão + ${currency.format(specificAstrion)} modelos específicos + ${currency.format(ouribankRevenue)} BP próprio`;
   $("#kpi-weighted").textContent = currency.format(weighted);
   $("#kpi-partner-commission").textContent = currency.format(partnerCommission);
   $("#kpi-client-base").textContent = number.format(Math.round(mappedBase));
-  $("#kpi-client-base-detail").textContent = `${standard.length} parceiros/operações com base modelada; exclui Ouribank`;
+  $("#kpi-client-base-detail").textContent = `${modeled.length} parceiros/operações com base modelada; exclui Ouribank`;
   $("#kpi-production-horizon").textContent = currency.format(productionHorizon);
   $("#kpi-ta-horizon").textContent = currency.format(taNominalHorizon);
   $("#kpi-vpl-inc").textContent = currency.format(vplIncremental);
   $("#kpi-vpl-full").textContent = currency.format(vplFullyLoaded);
   $("#kpi-treated").textContent = number.format(Math.round(treatedClients));
-  $("#kpi-treated-detail").textContent = `${mappedBase ? new Intl.NumberFormat("pt-BR",{style:"percent",maximumFractionDigits:1}).format(treatedClients / mappedBase) : "—"} da base total dos parceiros foi alcançada pelo modelo`;
+  $("#kpi-treated-detail").textContent = `${treatedBase ? new Intl.NumberFormat("pt-BR",{style:"percent",maximumFractionDigits:1}).format(treatedClients / treatedBase) : "—"} da base nas operações com capacidade de tratamento explícita`;
   $("#kpi-sales").textContent = new Intl.NumberFormat("pt-BR",{maximumFractionDigits:0}).format(quotasSold);
-  $("#kpi-sales-detail").textContent = `Cotas originadas nas ${standard.length} operações padronizadas; exclui Ouribank`;
+  $("#kpi-sales-detail").textContent = `Cotas projetadas onde o modelo informa volume; exclui Ouribank`;
 
   const rankedRevenue = [...scenarios].sort((x,y) => y.astrionRevenue - x.astrionRevenue);
   const maxRevenue = Math.max(...rankedRevenue.map(item => item.astrionRevenue), 1);
   $("#revenue-ranking").innerHTML = rankedRevenue.slice(0, 9).map((item,index) => {
     const opportunity = item.opportunity;
     const health = opportunityHealth(opportunity);
-    const source = item.method === "OURIBANK" ? "BP próprio" : item.method === "MISSING_BASE" ? "Base pendente" : "Modelo econômico 10 anos";
-    const detail = item.model ? `${number.format(Math.round(item.model.treatedClients))} tratados · ${new Intl.NumberFormat("pt-BR",{style:"percent",maximumFractionDigits:1}).format(item.model.coverageRate)} da base` : source;
+    const source = item.method === "OURIBANK" ? "BP próprio" : item.method === "MODEL_SPECIFIC" ? "Modelo específico" : item.method === "MISSING_BASE" ? "Base pendente" : "Modelo econômico 10 anos";
+    const detail = item.method === "MODEL_SPECIFIC"
+      ? `${source}${item.economics?.source_reference ? " · benchmark registrado" : ""}`
+      : item.model && item.model.treatedClients != null && item.model.coverageRate != null
+        ? `${number.format(Math.round(item.model.treatedClients))} tratados · ${new Intl.NumberFormat("pt-BR",{style:"percent",maximumFractionDigits:1}).format(item.model.coverageRate)} da base`
+        : source;
     return `<div class="ranking-row open-detail" data-id="${opportunity.id}">
       <span class="ranking-position">${String(index + 1).padStart(2,"0")}</span>
       ${companyLogoTemplate(opportunity,"sm")}
@@ -672,7 +713,7 @@ function renderDashboard() {
     </div>`;
   }).join("") || emptyTemplate("Nenhuma oportunidade ativa.");
 
-  const productionRanked = [...standard].sort((x,y) => y.model.productionHorizon - x.model.productionHorizon);
+  const productionRanked = [...modeled].sort((x,y) => Number(y.model.productionHorizon || 0) - Number(x.model.productionHorizon || 0));
   const maxProduction = Math.max(...productionRanked.map(item => item.model.productionHorizon),1);
   $("#production-ranking").innerHTML = productionRanked.slice(0,9).map((item,index) => `<div class="ranking-row open-detail" data-id="${item.opportunity.id}">
     <span class="ranking-position">${String(index + 1).padStart(2,"0")}</span>
@@ -710,6 +751,7 @@ function renderDashboard() {
     ["VPL fully loaded positivo", positiveFull, standard.length ? positiveFull / standard.length : 0, "model"],
     ["Base integralmente tratada", fullyTreated, standard.length ? fullyTreated / standard.length : 0, "estimate"],
     ["Limitadas pela capacidade", capacityLimited, standard.length ? capacityLimited / standard.length : 0, "missing"],
+    ["Modelo econômico específico", specific.length, active.length ? specific.length / active.length : 0, "model"],
     ["Sem base para modelar", missingBase.length, active.length ? missingBase.length / active.length : 0, "missing"]
   ].map(([label,count,ratio,tone]) => `<div class="coverage-row"><span class="coverage-icon coverage-icon--${tone}"></span><div><strong>${count}</strong><small>${label}</small></div><span class="coverage-percent">${Math.round(ratio * 100)}%</span></div>`).join("");
 
@@ -799,7 +841,7 @@ function kanbanCardTemplate(opportunity) {
   const owner = ownerFor(opportunity.owner_id);
   const scenario = dashboardScenario(opportunity);
   const health = opportunityHealth(opportunity);
-  return `<article class="kanban-card open-detail" draggable="true" data-id="${opportunity.id}"><div class="kanban-card__top">${companyLogoTemplate(opportunity, "md")}<span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><h4>${escapeHTML(opportunity.company)} ${economicSourceBadge(opportunity.id)}</h4><span class="contact-line">${escapeHTML(opportunity.contact_name || opportunity.segment || "Contato a confirmar")}</span><p class="summary-line">${escapeHTML(opportunity.summary)}</p><div class="card-insights"><span>Receita <strong>${scenario.astrionRevenue ? compactMoney(scenario.astrionRevenue) : "—"}</strong></span><span>Saúde <strong class="health-text--${health.tone}">${health.score}</strong></span></div><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span><span>${escapeHTML(owner?.full_name || "A definir")}</span></div><div class="kanban-card__meta"><strong>${scenario.method === "OURIBANK" ? "BP próprio" : scenario.method === "MISSING_BASE" ? "Sem base" : "Modelo 10a"}</strong><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></div></article>`;
+  return `<article class="kanban-card open-detail" draggable="true" data-id="${opportunity.id}"><div class="kanban-card__top">${companyLogoTemplate(opportunity, "md")}<span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><h4>${escapeHTML(opportunity.company)} ${economicSourceBadge(opportunity.id)}</h4><span class="contact-line">${escapeHTML(opportunity.contact_name || opportunity.segment || "Contato a confirmar")}</span><p class="summary-line">${escapeHTML(opportunity.summary)}</p><div class="card-insights"><span>Receita <strong>${scenario.astrionRevenue ? compactMoney(scenario.astrionRevenue) : "—"}</strong></span><span>Saúde <strong class="health-text--${health.tone}">${health.score}</strong></span></div><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span><span>${escapeHTML(owner?.full_name || "A definir")}</span></div><div class="kanban-card__meta"><strong>${scenario.method === "OURIBANK" ? "BP próprio" : scenario.method === "MODEL_SPECIFIC" ? "Modelo específico" : scenario.method === "MISSING_BASE" ? "Sem base" : "Modelo 10a"}</strong><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></div></article>`;
 }
 
 function bindKanbanDrag() {
@@ -832,7 +874,7 @@ function opportunityRowTemplate(opportunity) {
   const meta = statusMeta(opportunity.status);
   const owner = ownerFor(opportunity.owner_id);
   const scenario = dashboardScenario(opportunity);
-  return `<tr class="open-detail" data-id="${opportunity.id}"><td><div class="company-cell">${companyLogoTemplate(opportunity, "md")}<div><strong>${escapeHTML(opportunity.company)} ${economicSourceBadge(opportunity.id)}</strong><small>${escapeHTML(opportunity.summary)}</small></div></div></td><td><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span></td><td><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></td><td><strong>${scenario.astrionRevenue ? money(scenario.astrionRevenue) : "—"}</strong><small class="metric-caption">${scenario.method === "OURIBANK" ? "BP próprio" : scenario.method === "MISSING_BASE" ? "base pendente" : "Modelo 10a"}</small></td><td><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span>${escapeHTML(owner?.full_name || "A definir")}</div></td><td><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></td><td><button class="row-action" aria-label="Abrir oportunidade">→</button></td></tr>`;
+  return `<tr class="open-detail" data-id="${opportunity.id}"><td><div class="company-cell">${companyLogoTemplate(opportunity, "md")}<div><strong>${escapeHTML(opportunity.company)} ${economicSourceBadge(opportunity.id)}</strong><small>${escapeHTML(opportunity.summary)}</small></div></div></td><td><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span></td><td><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></td><td><strong>${scenario.astrionRevenue ? money(scenario.astrionRevenue) : "—"}</strong><small class="metric-caption">${scenario.method === "OURIBANK" ? "BP próprio" : scenario.method === "MODEL_SPECIFIC" ? "modelo específico" : scenario.method === "MISSING_BASE" ? "base pendente" : "Modelo 10a"}</small></td><td><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span>${escapeHTML(owner?.full_name || "A definir")}</div></td><td><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></td><td><button class="row-action" aria-label="Abrir oportunidade">→</button></td></tr>`;
 }
 
 function mobileOpportunityTemplate(opportunity) {
@@ -1011,6 +1053,16 @@ function opportunityPayload() {
 
 async function persistStandardModel(opportunity) {
   if (!state.online || !roleIsManager() || !opportunity?.id || isOuribank(opportunity)) return;
+  const existingEconomics = economicsFor(opportunity.id);
+  if (["MODELO_ESPECIFICO", "BP_REAL"].includes(existingEconomics?.source_type)) return;
+
+  if (economic?.source_type === "MODELO_ESPECIFICO") {
+    const model = economicModelFor(economic.model_key);
+    return `<section class="detail-section detail-section--economics">
+      <div class="detail-section__head"><div><span class="eyebrow">Modelo econômico específico</span><h3>${escapeHTML(model?.name || "Projeção específica da oportunidade")}</h3><p>${escapeHTML(economic.notes || "Premissas específicas registradas para esta oportunidade.")}</p></div><span class="source-badge source-badge--modelo_especifico">Modelo específico</span></div>
+      ${economicDirectOutputsTemplate(economic)}
+    </section>`;
+  }
 
   const base = Number(opportunity.client_base || 0);
   if (!base) {
@@ -1156,7 +1208,9 @@ function economicsFor(opportunityId) {
 function economicSourceBadge(opportunityId) {
   const opportunity = state.opportunities.find(item => item.id === opportunityId);
   if (!opportunity) return "";
-  if (isOuribank(opportunity)) return '<span class="mini-source mini-source--bp_real">BP próprio</span>';
+  const economic = economicsFor(opportunityId);
+  if (isOuribank(opportunity) || economic?.source_type === "BP_REAL") return '<span class="mini-source mini-source--bp_real">BP próprio</span>';
+  if (economic?.source_type === "MODELO_ESPECIFICO") return '<span class="mini-source mini-source--modelo_especifico">Modelo específico</span>';
   if (!Number(opportunity.client_base || 0)) return '<span class="mini-source mini-source--missing">Sem base</span>';
   return '<span class="mini-source mini-source--estimativa_padrao">Modelo 10a</span>';
 }
@@ -1226,7 +1280,13 @@ function bpKpisTemplate(economic) {
     payback_mes: ["Payback", "month"],
     ebitda_nominal_360m: ["EBITDA nominal · 360m", "money"],
     vpl_m0: ["VPL M0", "money"],
-    cotas_ativas_maximas: ["Cotas ativas máximas", "number"]
+    cotas_ativas_maximas: ["Cotas ativas máximas", "number"],
+    cotas_vendidas_120m: ["Cotas vendidas · 120m", "number1"],
+    vivo_novas_cotas_mes: ["Benchmark Vivo/Klubi · cotas/mês", "number1"],
+    penetracao_base_mes_pct: ["Penetração benchmark / mês", "percent"],
+    claro_cotas_mes_regime: ["Claro · cotas/mês em regime", "number1"],
+    claro_cotas_ano_regime: ["Claro · cotas/ano em regime", "number1"],
+    ticket_proxy: ["Ticket de referência", "money"]
   };
   const format = (value, type) => {
     if (type === "money") return currency.format(Number(value));
@@ -1461,12 +1521,12 @@ async function openDetail(id) {
     <section class="detail-hero">${(() => {
       const scenario = dashboardScenario(opportunity);
       const health = opportunityHealth(opportunity);
-      const method = scenario.method === "OURIBANK" ? "BP próprio" : scenario.method === "MISSING_BASE" ? "Base pendente" : "Modelo econômico · 10 anos";
+      const method = scenario.method === "OURIBANK" ? "BP próprio" : scenario.method === "MODEL_SPECIFIC" ? "Modelo econômico específico" : scenario.method === "MISSING_BASE" ? "Base pendente" : "Modelo econômico · 10 anos";
       const production = scenario.model?.productionHorizon ?? economics?.horizon_production ?? null;
-      const thirdLabel = scenario.method === "OURIBANK" ? "VPL do BP" : "VPL incremental";
-      const thirdValue = scenario.method === "OURIBANK" ? Number(economics?.bp_kpis?.vpl_m0 || 0) : scenario.model?.vplIncremental;
-      const fourthLabel = scenario.method === "OURIBANK" ? "Probabilidade" : "Cobertura da base";
-      const fourthValue = scenario.method === "OURIBANK" ? `${opportunity.probability || 0}%` : scenario.model ? new Intl.NumberFormat("pt-BR",{style:"percent",maximumFractionDigits:1}).format(scenario.model.coverageRate) : "—";
+      const thirdLabel = scenario.method === "OURIBANK" ? "VPL do BP" : scenario.method === "MODEL_SPECIFIC" ? "Receita Astrion · ano 1" : "VPL incremental";
+      const thirdValue = scenario.method === "OURIBANK" ? Number(economics?.bp_kpis?.vpl_m0 || 0) : scenario.method === "MODEL_SPECIFIC" ? Number(economics?.year1_astrion_revenue || 0) : scenario.model?.vplIncremental;
+      const fourthLabel = scenario.method === "OURIBANK" ? "Probabilidade" : scenario.method === "MODEL_SPECIFIC" ? "Ticket de referência" : "Cobertura da base";
+      const fourthValue = scenario.method === "OURIBANK" ? `${opportunity.probability || 0}%` : scenario.method === "MODEL_SPECIFIC" ? money(economics?.average_ticket) : scenario.model ? new Intl.NumberFormat("pt-BR",{style:"percent",maximumFractionDigits:1}).format(scenario.model.coverageRate) : "—";
       return `<div class="detail-company-head">${companyLogoTemplate(opportunity, "md")}<div><span class="detail-method">${method}</span><strong class="health-pill health-pill--${health.tone}">${health.label} · ${health.score}</strong></div></div><div class="detail-hero__top"><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><p>${escapeHTML(opportunity.summary)}</p><div class="detail-metrics"><div><small>Receita Astrion modelada</small><strong>${scenario.astrionRevenue ? money(scenario.astrionRevenue) : "—"}</strong></div><div><small>Produção · horizonte</small><strong>${production == null ? "—" : money(production)}</strong></div><div><small>${thirdLabel}</small><strong>${thirdValue == null ? "—" : money(thirdValue)}</strong></div><div><small>${fourthLabel}</small><strong>${fourthValue}</strong></div></div>`;
     })()}</section>
     ${economicSummaryTemplate(economics, opportunity)}
