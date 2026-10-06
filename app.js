@@ -1056,14 +1056,6 @@ async function persistStandardModel(opportunity) {
   const existingEconomics = economicsFor(opportunity.id);
   if (["MODELO_ESPECIFICO", "BP_REAL"].includes(existingEconomics?.source_type)) return;
 
-  if (economic?.source_type === "MODELO_ESPECIFICO") {
-    const model = economicModelFor(economic.model_key);
-    return `<section class="detail-section detail-section--economics">
-      <div class="detail-section__head"><div><span class="eyebrow">Modelo econômico específico</span><h3>${escapeHTML(model?.name || "Projeção específica da oportunidade")}</h3><p>${escapeHTML(economic.notes || "Premissas específicas registradas para esta oportunidade.")}</p></div><span class="source-badge source-badge--modelo_especifico">Modelo específico</span></div>
-      ${economicDirectOutputsTemplate(economic)}
-    </section>`;
-  }
-
   const base = Number(opportunity.client_base || 0);
   if (!base) {
     const { error: opportunityError } = await state.supabase.from("opportunities").update({ potential_revenue: null, expected_sales: null }).eq("id", opportunity.id);
@@ -1328,6 +1320,14 @@ function economicSummaryTemplate(economic, opportunity) {
       <div class="detail-section__head"><div><span class="eyebrow">Business Plan próprio</span><h3>${escapeHTML(model?.name || "Ouribank · administradora própria")}</h3><p>${escapeHTML(economic.notes || model?.description || "")}</p></div><span class="source-badge source-badge--bp_real">BP próprio</span></div>
       ${economicDirectOutputsTemplate(economic)}
       ${model?.source_note ? `<p class="economic-source"><strong>Referência:</strong> ${escapeHTML(model.source_note)}</p>` : ""}
+    </section>`;
+  }
+
+  if (economic?.source_type === "MODELO_ESPECIFICO") {
+    const model = economicModelFor(economic.model_key);
+    return `<section class="detail-section detail-section--economics">
+      <div class="detail-section__head"><div><span class="eyebrow">Modelo econômico específico</span><h3>${escapeHTML(model?.name || "Projeção específica da oportunidade")}</h3><p>${escapeHTML(economic.notes || "Premissas específicas registradas para esta oportunidade.")}</p></div><span class="source-badge source-badge--modelo_especifico">Modelo específico</span></div>
+      ${economicDirectOutputsTemplate(economic)}
     </section>`;
   }
 
