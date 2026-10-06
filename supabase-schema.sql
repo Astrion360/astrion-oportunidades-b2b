@@ -850,3 +850,40 @@ on public.access_allowlist(created_by);
 
 create index if not exists opportunity_economics_updated_by_idx
 on public.opportunity_economics(updated_by);
+
+
+-- 8. Outputs de BP e rastreabilidade -----------------------------------------
+-- Guarda outputs diretos de BPs/modelos específicos sem substituir as
+-- premissas parametrizadas. Permite distinguir BP real de estimativa automática.
+
+alter table public.opportunity_economics
+  add column if not exists source_type text,
+  add column if not exists source_reference text,
+  add column if not exists source_date date,
+  add column if not exists year1_production numeric(24,2),
+  add column if not exists year1_operation_revenue numeric(24,2),
+  add column if not exists year1_astrion_revenue numeric(24,2),
+  add column if not exists horizon_production numeric(24,2),
+  add column if not exists horizon_operation_revenue numeric(24,2),
+  add column if not exists horizon_astrion_revenue numeric(24,2),
+  add column if not exists bp_kpis jsonb not null default '{}'::jsonb;
+
+alter table public.opportunity_economics
+  drop constraint if exists opportunity_economics_source_type_check;
+
+alter table public.opportunity_economics
+  add constraint opportunity_economics_source_type_check
+  check (source_type is null or source_type in ('BP_REAL','MODELO_ESPECIFICO','ESTIMATIVA_PADRAO'));
+
+update public.economic_models
+set defaults = jsonb_build_object(
+      'treatment_rate_month', 0.04,
+      'conversion_rate', 1.5,
+      'average_ticket', 95243,
+      'admin_fee_rate', 17,
+      'astrion_revenue_rate', 0.25,
+      'projection_months', 12
+    ),
+    description = 'Estimativa padronizada para oportunidades ainda sem BP: escala linear pela base de clientes, sem teto artificial de operadores.',
+    source_note = 'Premissas Astrion: 0,04% da base tratada/mês; conversão 1,5%; ticket R$ 95.243; TA 17%; remuneração Astrion 0,25% da produção. Usar apenas até existir BP específico.'
+where model_key = 'astrion_consorcios_padrao';
