@@ -621,92 +621,93 @@ function renderDashboard() {
 
   const active = state.opportunities.filter(opportunity => !["Ganha", "Perdida", "Pausada"].includes(opportunity.status));
   const scenarios = active.map(dashboardScenario);
-  const standard = scenarios.filter(item => item.method === "PAGBANK_LIKE");
+  const standard = scenarios.filter(item => item.method === "STANDARD_10Y");
   const ouribank = scenarios.find(item => item.method === "OURIBANK");
   const missingBase = scenarios.filter(item => item.method === "MISSING_BASE");
 
-  const simulatedRevenue = standard.reduce((sum, item) => sum + item.astrionRevenue, 0);
+  const standardAstrion = standard.reduce((sum, item) => sum + item.model.astrionRevenue, 0);
   const ouribankRevenue = ouribank?.astrionRevenue || 0;
-  const totalRevenue = simulatedRevenue + ouribankRevenue;
+  const totalRevenue = standardAstrion + ouribankRevenue;
   const weighted = scenarios.reduce((sum, item) => sum + item.weightedRevenue, 0);
-  const productionMonth = standard.reduce((sum, item) => sum + item.productionMonthly, 0);
-  const productionYear = standard.reduce((sum, item) => sum + item.productionAnnual, 0);
-  const adminEconomics = standard.reduce((sum, item) => sum + item.adminEconomicsAnnual, 0);
-  const mappedBase = active.reduce((sum, item) => sum + Number(item.client_base || 0), 0);
+  const productionHorizon = standard.reduce((sum, item) => sum + item.model.productionHorizon, 0);
+  const taNominalHorizon = standard.reduce((sum, item) => sum + item.model.taNominalHorizon, 0);
+  const vplIncremental = standard.reduce((sum, item) => sum + item.model.vplIncremental, 0);
+  const vplFullyLoaded = standard.reduce((sum, item) => sum + item.model.vplFullyLoaded, 0);
+  const treatedClients = standard.reduce((sum, item) => sum + item.model.treatedClients, 0);
+  const quotasSold = standard.reduce((sum, item) => sum + item.model.quotasSold, 0);
+  const mappedBase = standard.reduce((sum, item) => sum + item.base, 0);
 
   const inSevenDays = new Date(Date.now() + 7 * 86400000);
   const nextCount = active.filter(opportunity => opportunity.next_action_date && new Date(opportunity.next_action_date) >= new Date() && new Date(opportunity.next_action_date) <= inSevenDays).length;
   const overdue = active.filter(isOverdue);
-  const modeled = active.filter(item => economicsFor(item.id)?.source_type && economicsFor(item.id)?.source_type !== "ESTIMATIVA_PADRAO").length;
 
   $("#kpi-potential").textContent = currency.format(totalRevenue);
-  $("#kpi-potential-detail").textContent = `${currency.format(simulatedRevenue)} simulados + ${currency.format(ouribankRevenue)} Ouribank`;
+  $("#kpi-potential-detail").textContent = `${currency.format(standardAstrion)} no modelo 10 anos + ${currency.format(ouribankRevenue)} Ouribank`;
   $("#kpi-weighted").textContent = currency.format(weighted);
-  $("#kpi-production-month").textContent = currency.format(productionMonth);
-  $("#kpi-production-year").textContent = currency.format(productionYear);
-  $("#kpi-client-base").textContent = number.format(mappedBase);
-  $("#kpi-client-base-detail").textContent = `${number.format(standard.reduce((sum, item) => sum + item.base, 0))} na régua PagBank`;
-  $("#kpi-admin-economics").textContent = currency.format(adminEconomics);
-  $("#kpi-active-count").textContent = number.format(active.length);
-  $("#kpi-model-coverage").textContent = `${modeled} com BP/modelo · ${missingBase.length} sem base`;
-  $("#kpi-overdue").textContent = number.format(overdue.length);
-  $("#kpi-overdue-detail").textContent = `${nextCount} ações nos próximos 7 dias`;
+  $("#kpi-production-horizon").textContent = currency.format(productionHorizon);
+  $("#kpi-ta-horizon").textContent = currency.format(taNominalHorizon);
+  $("#kpi-vpl-inc").textContent = currency.format(vplIncremental);
+  $("#kpi-vpl-full").textContent = currency.format(vplFullyLoaded);
+  $("#kpi-treated").textContent = number.format(Math.round(treatedClients));
+  $("#kpi-treated-detail").textContent = `${mappedBase ? new Intl.NumberFormat("pt-BR",{style:"percent",maximumFractionDigits:1}).format(treatedClients / mappedBase) : "—"} da base modelada`;
+  $("#kpi-sales").textContent = new Intl.NumberFormat("pt-BR",{maximumFractionDigits:0}).format(quotasSold);
+  $("#kpi-sales-detail").textContent = `${standard.length} oportunidades no motor padronizado`;
 
-  const rankedRevenue = [...scenarios].sort((a,b) => b.astrionRevenue - a.astrionRevenue);
+  const rankedRevenue = [...scenarios].sort((x,y) => y.astrionRevenue - x.astrionRevenue);
   const maxRevenue = Math.max(...rankedRevenue.map(item => item.astrionRevenue), 1);
-  $("#revenue-ranking").innerHTML = rankedRevenue.slice(0, 8).map((item, index) => {
+  $("#revenue-ranking").innerHTML = rankedRevenue.slice(0, 9).map((item,index) => {
     const opportunity = item.opportunity;
     const health = opportunityHealth(opportunity);
-    const source = item.method === "OURIBANK" ? "BP próprio" : item.method === "MISSING_BASE" ? "Base pendente" : "PagBank-like";
+    const source = item.method === "OURIBANK" ? "BP próprio" : item.method === "MISSING_BASE" ? "Base pendente" : "Modelo econômico 10 anos";
+    const detail = item.model ? `${number.format(Math.round(item.model.treatedClients))} tratados · ${new Intl.NumberFormat("pt-BR",{style:"percent",maximumFractionDigits:1}).format(item.model.coverageRate)} da base` : source;
     return `<div class="ranking-row open-detail" data-id="${opportunity.id}">
-      <span class="ranking-position">${String(index + 1).padStart(2, "0")}</span>
-      ${companyLogoTemplate(opportunity, "sm")}
-      <div class="ranking-main"><div class="ranking-title"><strong>${escapeHTML(opportunity.company)}</strong><span class="health-dot health-dot--${health.tone}" title="${health.label}"></span></div><small>${source}</small><div class="ranking-track"><span style="width:${Math.max(item.astrionRevenue / maxRevenue * 100, item.astrionRevenue ? 2 : 0)}%"></span></div></div>
+      <span class="ranking-position">${String(index + 1).padStart(2,"0")}</span>
+      ${companyLogoTemplate(opportunity,"sm")}
+      <div class="ranking-main"><div class="ranking-title"><strong>${escapeHTML(opportunity.company)}</strong><span class="health-dot health-dot--${health.tone}" title="${health.label}"></span></div><small>${escapeHTML(detail)}</small><div class="ranking-track"><span style="width:${Math.max(item.astrionRevenue / maxRevenue * 100,item.astrionRevenue ? 2 : 0)}%"></span></div></div>
       <strong class="ranking-value">${item.astrionRevenue ? compactMoney(item.astrionRevenue) : "—"}</strong>
     </div>`;
   }).join("") || emptyTemplate("Nenhuma oportunidade ativa.");
 
-  const productionRanked = [...standard].sort((a,b) => b.productionAnnual - a.productionAnnual);
-  const maxProduction = Math.max(...productionRanked.map(item => item.productionAnnual), 1);
-  $("#production-ranking").innerHTML = productionRanked.slice(0, 8).map((item, index) => `<div class="ranking-row open-detail" data-id="${item.opportunity.id}">
-      <span class="ranking-position">${String(index + 1).padStart(2, "0")}</span>
-      ${companyLogoTemplate(item.opportunity, "sm")}
-      <div class="ranking-main"><div class="ranking-title"><strong>${escapeHTML(item.opportunity.company)}</strong></div><small>${number.format(Math.round(item.treatedMonthly))} tratados/mês · ${new Intl.NumberFormat("pt-BR",{maximumFractionDigits:1}).format(item.conversionsMonthly)} conversões/mês</small><div class="ranking-track ranking-track--cyan"><span style="width:${Math.max(item.productionAnnual / maxProduction * 100, 2)}%"></span></div></div>
-      <strong class="ranking-value">${compactMoney(item.productionAnnual)}</strong>
-    </div>`).join("") || emptyTemplate("Nenhuma base disponível para simulação.");
+  const productionRanked = [...standard].sort((x,y) => y.model.productionHorizon - x.model.productionHorizon);
+  const maxProduction = Math.max(...productionRanked.map(item => item.model.productionHorizon),1);
+  $("#production-ranking").innerHTML = productionRanked.slice(0,9).map((item,index) => `<div class="ranking-row open-detail" data-id="${item.opportunity.id}">
+    <span class="ranking-position">${String(index + 1).padStart(2,"0")}</span>
+    ${companyLogoTemplate(item.opportunity,"sm")}
+    <div class="ranking-main"><div class="ranking-title"><strong>${escapeHTML(item.opportunity.company)}</strong></div><small>${new Intl.NumberFormat("pt-BR",{maximumFractionDigits:0}).format(item.model.quotasSold)} cotas · VPL incr. ${compactMoney(item.model.vplIncremental)}</small><div class="ranking-track ranking-track--cyan"><span style="width:${Math.max(item.model.productionHorizon / maxProduction * 100,2)}%"></span></div></div>
+    <strong class="ranking-value">${compactMoney(item.model.productionHorizon)}</strong>
+  </div>`).join("") || emptyTemplate("Nenhuma base disponível para simulação.");
 
   const rows = ACTIVE_STATUSES.map(meta => {
     const items = scenarios.filter(item => item.opportunity.status === meta.value);
-    return { ...meta, count: items.length, totalValue: items.reduce((sum, item) => sum + item.astrionRevenue, 0) };
+    return { ...meta, count: items.length, totalValue: items.reduce((sum,item) => sum + item.astrionRevenue,0) };
   });
-  const max = Math.max(...rows.map(row => row.totalValue), 1);
-  $("#funnel-chart").innerHTML = rows.map(row => `<div class="funnel-row"><span class="funnel-row__label">${row.value}</span><div class="funnel-track"><div class="funnel-fill" style="width:${Math.max(row.totalValue / max * 100, row.count ? 3 : 0)}%"></div></div><span class="funnel-value">${row.count} · ${compactMoney(row.totalValue)}</span></div>`).join("");
+  const max = Math.max(...rows.map(row => row.totalValue),1);
+  $("#funnel-chart").innerHTML = rows.map(row => `<div class="funnel-row"><span class="funnel-row__label">${row.value}</span><div class="funnel-track"><div class="funnel-fill" style="width:${Math.max(row.totalValue / max * 100,row.count ? 3 : 0)}%"></div></div><span class="funnel-value">${row.count} · ${compactMoney(row.totalValue)}</span></div>`).join("");
 
   const healthRows = active.map(opportunity => ({ opportunity, ...opportunityHealth(opportunity) }));
   const healthGroups = [
-    { label: "Saudável", tone: "good", color: "#079455", items: healthRows.filter(item => item.tone === "good") },
-    { label: "Atenção", tone: "warn", color: "#f79009", items: healthRows.filter(item => item.tone === "warn") },
-    { label: "Crítica", tone: "critical", color: "#d92d20", items: healthRows.filter(item => item.tone === "critical") }
+    { label:"Saudável", tone:"good", color:"#079455", items:healthRows.filter(item => item.tone === "good") },
+    { label:"Atenção", tone:"warn", color:"#f79009", items:healthRows.filter(item => item.tone === "warn") },
+    { label:"Crítica", tone:"critical", color:"#d92d20", items:healthRows.filter(item => item.tone === "critical") }
   ];
-  const totalHealth = Math.max(healthRows.length, 1);
+  const totalHealth = Math.max(healthRows.length,1);
   let start = 0;
-  const stops = healthGroups.map(group => { const from = start; start += group.items.length / totalHealth * 100; return `${group.color} ${from}% ${start}%`; }).join(", ");
-  const avgHealth = healthRows.length ? Math.round(healthRows.reduce((sum, item) => sum + item.score, 0) / healthRows.length) : 0;
+  const stops = healthGroups.map(group => { const from=start; start += group.items.length / totalHealth * 100; return `${group.color} ${from}% ${start}%`; }).join(", ");
+  const avgHealth = healthRows.length ? Math.round(healthRows.reduce((sum,item) => sum + item.score,0) / healthRows.length) : 0;
   $("#health-chart").innerHTML = `<div class="donut" style="background:conic-gradient(${healthRows.length ? stops : "#e9edf3 0 100%"})"><div class="donut__center"><strong>${avgHealth}</strong><small>score médio</small></div></div><div class="health-legend">${healthGroups.map(group => `<span><i style="background:${group.color}"></i>${group.label}: ${group.items.length}</span>`).join("")}</div>`;
   $("#health-score-summary").innerHTML = `<span><strong>${active.filter(item => !item.next_action_date || !item.next_action).length}</strong> sem próximo passo</span><span><strong>${active.filter(item => !item.owner_id).length}</strong> sem responsável</span><span><strong>${active.filter(item => opportunityHealth(item).ageDays > 14).length}</strong> sem atualização &gt;14d</span>`;
 
-  const coverage = {
-    bp: active.filter(item => economicsFor(item.id)?.source_type === "BP_REAL").length,
-    specific: active.filter(item => economicsFor(item.id)?.source_type === "MODELO_ESPECIFICO").length,
-    estimate: active.filter(item => economicsFor(item.id)?.source_type === "ESTIMATIVA_PADRAO").length,
-    missing: active.filter(item => !economicsFor(item.id)).length
-  };
+  const positiveVpl = standard.filter(item => item.model.vplIncremental > 0).length;
+  const positiveFull = standard.filter(item => item.model.vplFullyLoaded > 0).length;
+  const fullyTreated = standard.filter(item => item.model.coverageRate >= 0.999999).length;
+  const capacityLimited = standard.length - fullyTreated;
   $("#model-coverage-chart").innerHTML = [
-    ["BP realizado", coverage.bp, "bp"],
-    ["Modelo específico", coverage.specific, "model"],
-    ["Estimativa padrão", coverage.estimate, "estimate"],
-    ["Sem modelagem", coverage.missing, "missing"]
-  ].map(([label,count,tone]) => `<div class="coverage-row"><span class="coverage-icon coverage-icon--${tone}"></span><div><strong>${count}</strong><small>${label}</small></div><span class="coverage-percent">${active.length ? Math.round(count / active.length * 100) : 0}%</span></div>`).join("");
+    ["VPL incremental positivo", positiveVpl, standard.length ? positiveVpl / standard.length : 0, "bp"],
+    ["VPL fully loaded positivo", positiveFull, standard.length ? positiveFull / standard.length : 0, "model"],
+    ["Base integralmente tratada", fullyTreated, standard.length ? fullyTreated / standard.length : 0, "estimate"],
+    ["Limitadas pela capacidade", capacityLimited, standard.length ? capacityLimited / standard.length : 0, "missing"],
+    ["Sem base para modelar", missingBase.length, active.length ? missingBase.length / active.length : 0, "missing"]
+  ].map(([label,count,ratio,tone]) => `<div class="coverage-row"><span class="coverage-icon coverage-icon--${tone}"></span><div><strong>${count}</strong><small>${label}</small></div><span class="coverage-percent">${Math.round(ratio * 100)}%</span></div>`).join("");
 
   const ouriEconomics = ouribank?.economics;
   const bp = ouriEconomics?.bp_kpis || {};
@@ -723,34 +724,46 @@ function renderDashboard() {
   ];
   $("#ouribank-spotlight").innerHTML = ouriItems.map(([label,value,type]) => `<div><small>${label}</small><strong>${value === null || value === undefined ? "—" : type === "money" ? compactMoney(value) : "M" + number.format(Number(value))}</strong></div>`).join("");
 
-  const actions = active.filter(item => item.next_action_date).sort((a, b) => new Date(a.next_action_date) - new Date(b.next_action_date)).slice(0, 6);
+  const actions = active.filter(item => item.next_action_date).sort((x,y) => new Date(x.next_action_date) - new Date(y.next_action_date)).slice(0,6);
   $("#next-actions").innerHTML = actions.length ? actions.map(actionRowTemplate).join("") : emptyTemplate("Nenhuma próxima ação cadastrada.");
 
   const noOwner = active.filter(item => !item.owner_id).length;
   const noNext = active.filter(item => !item.next_action_date || !item.next_action).length;
   const stale = active.filter(item => Date.now() - new Date(item.updated_at).getTime() > 14 * 86400000).length;
+  const negativeVpl = standard.filter(item => item.model.vplIncremental <= 0).length;
   const alerts = [
-    overdue.length && { title: `${overdue.length} ${overdue.length === 1 ? "ação atrasada" : "ações atrasadas"}`, text: "Repriorize os compromissos vencidos." },
-    missingBase.length && { title: `${missingBase.length} sem base de clientes`, text: "Sem base não há simulação econômica comparável." },
-    noOwner && { title: `${noOwner} sem responsável`, text: "Defina a pessoa que conduzirá cada oportunidade." },
-    noNext && { title: `${noNext} sem próximo passo`, text: "Todo negócio ativo deve ter ação e prazo definidos." },
-    stale && { title: `${stale} sem atualização recente`, text: "Revise negócios sem movimentação há mais de 14 dias." }
+    overdue.length && { title:`${overdue.length} ${overdue.length === 1 ? "ação atrasada" : "ações atrasadas"}`, text:"Repriorize os compromissos vencidos." },
+    missingBase.length && { title:`${missingBase.length} sem base de clientes`, text:"Sem base não é possível executar o motor econômico." },
+    negativeVpl && { title:`${negativeVpl} com VPL incremental negativo`, text:"Bases menores podem não absorver os custos fixos do modelo padronizado." },
+    noOwner && { title:`${noOwner} sem responsável`, text:"Defina a pessoa que conduzirá cada oportunidade." },
+    noNext && { title:`${noNext} sem próximo passo`, text:"Todo negócio ativo deve ter ação e prazo definidos." },
+    stale && { title:`${stale} sem atualização recente`, text:"Revise negócios sem movimentação há mais de 14 dias." }
   ].filter(Boolean);
-  $("#pipeline-alerts").innerHTML = alerts.length ? alerts.map((alert, index) => `<div class="alert-item"><span>${index + 1}</span><div><strong>${alert.title}</strong><p>${alert.text}</p></div></div>`).join("") : `<div class="alert-item"><span>✓</span><div><strong>Pipeline em dia</strong><p>Nenhum alerta crítico foi identificado.</p></div></div>`;
+  $("#pipeline-alerts").innerHTML = alerts.length ? alerts.map((alert,index) => `<div class="alert-item"><span>${index + 1}</span><div><strong>${alert.title}</strong><p>${alert.text}</p></div></div>`).join("") : `<div class="alert-item"><span>✓</span><div><strong>Pipeline em dia</strong><p>Nenhum alerta crítico foi identificado.</p></div></div>`;
 
-  const executiveRows = [...scenarios].sort((a,b) => b.astrionRevenue - a.astrionRevenue);
+  const executiveRows = [...scenarios].sort((x,y) => y.astrionRevenue - x.astrionRevenue);
   $("#executive-ranking-table").innerHTML = executiveRows.map(item => {
     const op = item.opportunity;
     const health = opportunityHealth(op);
-    const source = item.method === "OURIBANK" ? '<span class="source-badge source-badge--bp_real">BP próprio</span>' : item.method === "MISSING_BASE" ? '<span class="source-badge source-badge--missing">Sem base</span>' : '<span class="source-badge source-badge--estimativa_padrao">PagBank-like</span>';
+    if (item.method === "OURIBANK") {
+      return `<tr class="open-detail" data-id="${op.id}">
+        <td><div class="company-cell">${companyLogoTemplate(op,"sm")}<div><strong>${escapeHTML(op.company)}</strong><small>${escapeHTML(op.segment || "Serviços financeiros")}</small></div></div></td>
+        <td><span class="source-badge source-badge--bp_real">BP próprio</span></td><td>${op.client_base ? number.format(Number(op.client_base)) : "—"}</td>
+        <td>—</td><td>—</td><td>—</td><td><strong>${compactMoney(item.astrionRevenue)}</strong></td><td>${compactMoney(Number(bp.vpl_m0 || 0))}</td><td>—</td>
+        <td><span class="health-pill health-pill--${health.tone}">${health.label} · ${health.score}</span></td>
+      </tr>`;
+    }
+    const model = item.model;
     return `<tr class="open-detail" data-id="${op.id}">
-      <td><div class="company-cell">${companyLogoTemplate(op, "sm")}<div><strong>${escapeHTML(op.company)}</strong><small>${escapeHTML(op.segment || "Segmento a confirmar")}</small></div></div></td>
-      <td>${source}</td>
+      <td><div class="company-cell">${companyLogoTemplate(op,"sm")}<div><strong>${escapeHTML(op.company)}</strong><small>${escapeHTML(op.segment || "Segmento a confirmar")}</small></div></div></td>
+      <td>${item.method === "MISSING_BASE" ? '<span class="source-badge source-badge--missing">Sem base</span>' : '<span class="source-badge source-badge--estimativa_padrao">Modelo 10a</span>'}</td>
       <td>${op.client_base ? number.format(Number(op.client_base)) : "—"}</td>
-      <td>${item.productionMonthly == null ? "—" : compactMoney(item.productionMonthly)}</td>
-      <td><strong>${item.astrionRevenue ? compactMoney(item.astrionRevenue) : "—"}</strong></td>
-      <td>${number.format(item.probability)}%</td>
-      <td>${item.weightedRevenue ? compactMoney(item.weightedRevenue) : "—"}</td>
+      <td>${model ? number.format(Math.round(model.treatedClients)) : "—"}</td>
+      <td>${model ? new Intl.NumberFormat("pt-BR",{maximumFractionDigits:0}).format(model.quotasSold) : "—"}</td>
+      <td>${model ? compactMoney(model.productionHorizon) : "—"}</td>
+      <td><strong>${model ? compactMoney(model.astrionRevenue) : "—"}</strong></td>
+      <td>${model ? compactMoney(model.vplIncremental) : "—"}</td>
+      <td>${model ? new Intl.NumberFormat("pt-BR",{style:"percent",maximumFractionDigits:1}).format(model.coverageRate) : "—"}</td>
       <td><span class="health-pill health-pill--${health.tone}">${health.label} · ${health.score}</span></td>
     </tr>`;
   }).join("");
