@@ -781,7 +781,7 @@ function renderPipeline() {
   const items = filteredOpportunities();
   const pipelineStatuses = STATUSES.filter(status => !["Perdida", "Pausada"].includes(status.value));
   const total = items.filter(item => !isClosed(item)).reduce((sum, item) => sum + dashboardScenario(item).astrionRevenue, 0);
-  $("#pipeline-summary").innerHTML = `<span><strong>${items.length}</strong> registros visíveis</span><span>·</span><span><strong>${currency.format(total)}</strong> de receita comparável</span><span>·</span><span>PagBank-like, exceto Ouribank</span>`;
+  $("#pipeline-summary").innerHTML = `<span><strong>${items.length}</strong> registros visíveis</span><span>·</span><span><strong>${currency.format(total)}</strong> de receita Astrion modelada</span><span>·</span><span>Modelo econômico padronizado de 10 anos</span>`;
   $("#kanban").innerHTML = pipelineStatuses.map(meta => {
     const lane = items.filter(item => item.status === meta.value);
     const laneTotal = lane.reduce((sum, item) => sum + dashboardScenario(item).astrionRevenue, 0);
@@ -795,7 +795,7 @@ function kanbanCardTemplate(opportunity) {
   const owner = ownerFor(opportunity.owner_id);
   const scenario = dashboardScenario(opportunity);
   const health = opportunityHealth(opportunity);
-  return `<article class="kanban-card open-detail" draggable="true" data-id="${opportunity.id}"><div class="kanban-card__top">${companyLogoTemplate(opportunity, "md")}<span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><h4>${escapeHTML(opportunity.company)} ${economicSourceBadge(opportunity.id)}</h4><span class="contact-line">${escapeHTML(opportunity.contact_name || opportunity.segment || "Contato a confirmar")}</span><p class="summary-line">${escapeHTML(opportunity.summary)}</p><div class="card-insights"><span>Receita <strong>${scenario.astrionRevenue ? compactMoney(scenario.astrionRevenue) : "—"}</strong></span><span>Saúde <strong class="health-text--${health.tone}">${health.score}</strong></span></div><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span><span>${escapeHTML(owner?.full_name || "A definir")}</span></div><div class="kanban-card__meta"><strong>${scenario.method === "OURIBANK" ? "BP próprio" : scenario.method === "MISSING_BASE" ? "Sem base" : "PagBank-like"}</strong><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></div></article>`;
+  return `<article class="kanban-card open-detail" draggable="true" data-id="${opportunity.id}"><div class="kanban-card__top">${companyLogoTemplate(opportunity, "md")}<span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><h4>${escapeHTML(opportunity.company)} ${economicSourceBadge(opportunity.id)}</h4><span class="contact-line">${escapeHTML(opportunity.contact_name || opportunity.segment || "Contato a confirmar")}</span><p class="summary-line">${escapeHTML(opportunity.summary)}</p><div class="card-insights"><span>Receita <strong>${scenario.astrionRevenue ? compactMoney(scenario.astrionRevenue) : "—"}</strong></span><span>Saúde <strong class="health-text--${health.tone}">${health.score}</strong></span></div><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span><span>${escapeHTML(owner?.full_name || "A definir")}</span></div><div class="kanban-card__meta"><strong>${scenario.method === "OURIBANK" ? "BP próprio" : scenario.method === "MISSING_BASE" ? "Sem base" : "Modelo 10a"}</strong><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></div></article>`;
 }
 
 function bindKanbanDrag() {
@@ -828,7 +828,7 @@ function opportunityRowTemplate(opportunity) {
   const meta = statusMeta(opportunity.status);
   const owner = ownerFor(opportunity.owner_id);
   const scenario = dashboardScenario(opportunity);
-  return `<tr class="open-detail" data-id="${opportunity.id}"><td><div class="company-cell">${companyLogoTemplate(opportunity, "md")}<div><strong>${escapeHTML(opportunity.company)} ${economicSourceBadge(opportunity.id)}</strong><small>${escapeHTML(opportunity.summary)}</small></div></div></td><td><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span></td><td><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></td><td><strong>${scenario.astrionRevenue ? money(scenario.astrionRevenue) : "—"}</strong><small class="metric-caption">${scenario.method === "OURIBANK" ? "BP próprio" : scenario.method === "MISSING_BASE" ? "base pendente" : "PagBank-like"}</small></td><td><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span>${escapeHTML(owner?.full_name || "A definir")}</div></td><td><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></td><td><button class="row-action" aria-label="Abrir oportunidade">→</button></td></tr>`;
+  return `<tr class="open-detail" data-id="${opportunity.id}"><td><div class="company-cell">${companyLogoTemplate(opportunity, "md")}<div><strong>${escapeHTML(opportunity.company)} ${economicSourceBadge(opportunity.id)}</strong><small>${escapeHTML(opportunity.summary)}</small></div></div></td><td><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span></td><td><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></td><td><strong>${scenario.astrionRevenue ? money(scenario.astrionRevenue) : "—"}</strong><small class="metric-caption">${scenario.method === "OURIBANK" ? "BP próprio" : scenario.method === "MISSING_BASE" ? "base pendente" : "Modelo 10a"}</small></td><td><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span>${escapeHTML(owner?.full_name || "A definir")}</div></td><td><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></td><td><button class="row-action" aria-label="Abrir oportunidade">→</button></td></tr>`;
 }
 
 function mobileOpportunityTemplate(opportunity) {
@@ -1079,10 +1079,11 @@ function economicsFor(opportunityId) {
   return state.economics.find(item => item.opportunity_id === opportunityId) || null;
 }
 function economicSourceBadge(opportunityId) {
-  const economic = economicsFor(opportunityId);
-  if (!economic?.source_type) return "";
-  const labels = { BP_REAL: "BP", MODELO_ESPECIFICO: "Modelo", ESTIMATIVA_PADRAO: "Estimativa" };
-  return '<span class="mini-source mini-source--' + normalize(economic.source_type) + '">' + escapeHTML(labels[economic.source_type] || "Manual") + '</span>';
+  const opportunity = state.opportunities.find(item => item.id === opportunityId);
+  if (!opportunity) return "";
+  if (isOuribank(opportunity)) return '<span class="mini-source mini-source--bp_real">BP próprio</span>';
+  if (!Number(opportunity.client_base || 0)) return '<span class="mini-source mini-source--missing">Sem base</span>';
+  return '<span class="mini-source mini-source--estimativa_padrao">Modelo 10a</span>';
 }
 
 function calculateEconomics(economic = {}, opportunity = {}) {
@@ -1184,27 +1185,50 @@ function economicDirectOutputsTemplate(economic) {
 
 function economicSummaryTemplate(economic, opportunity) {
   if (!roleIsManager()) return "";
-  if (!economic) {
-    return `<section class="detail-section detail-section--economics"><div class="detail-section__head"><div><h3>Modelo econômico</h3><p>Associe esta oportunidade a um dos modelos Astrion para separar produção, economia do parceiro e receita efetiva da Astrion.</p></div><button class="btn btn--primary btn--small" id="edit-economics" data-id="${opportunity.id}">Criar modelo</button></div></section>`;
+
+  if (isOuribank(opportunity)) {
+    if (!economic) return '<section class="detail-section detail-section--economics"><div class="detail-section__head"><div><span class="eyebrow">Business Plan</span><h3>Ouribank · administradora própria</h3><p>Os indicadores deste projeto são mantidos no BP específico da administradora própria.</p></div></div></section>';
+    const model = economicModelFor(economic.model_key);
+    return `<section class="detail-section detail-section--economics">
+      <div class="detail-section__head"><div><span class="eyebrow">Business Plan próprio</span><h3>${escapeHTML(model?.name || "Ouribank · administradora própria")}</h3><p>${escapeHTML(economic.notes || model?.description || "")}</p></div><button class="btn btn--ghost btn--small" id="edit-economics" data-id="${opportunity.id}">Editar premissas</button></div>
+      ${economicDirectOutputsTemplate(economic)}
+      ${model?.source_note ? `<p class="economic-source"><strong>Referência:</strong> ${escapeHTML(model.source_note)}</p>` : ""}
+    </section>`;
   }
-  const model = economicModelFor(economic.model_key);
-  const out = calculateEconomics(economic, opportunity);
-  const isOwnAdmin = model?.family === "Administradora própria";
-  const hideSimplified = economic.source_type === "BP_REAL" || economic.source_type === "MODELO_ESPECIFICO";
+
+  const base = Number(opportunity.client_base || 0);
+  if (!base) {
+    return `<section class="detail-section detail-section--economics"><div class="detail-section__head"><div><span class="eyebrow">Modelo econômico</span><h3>Base de clientes pendente</h3><p>Informe a quantidade de clientes para executar o modelo padronizado de 10 anos. Todas as demais premissas permanecem fixas.</p></div></div></section>`;
+  }
+
+  const out = simulateStandardModel(base);
+  const pct = value => new Intl.NumberFormat("pt-BR",{style:"percent",maximumFractionDigits:2}).format(value);
   return `<section class="detail-section detail-section--economics">
-    <div class="detail-section__head"><div><span class="eyebrow">Modelo econômico</span><h3>${escapeHTML(model?.name || economic.model_key)}</h3><p>${escapeHTML(economic.notes || model?.description || "")}</p></div><button class="btn btn--ghost btn--small" id="edit-economics" data-id="${opportunity.id}">Editar premissas</button></div>
-    ${economicDirectOutputsTemplate(economic)}
-    <div class="economic-summary-grid ${hideSimplified ? "bp-calculated-hidden" : ""}">
-      <div><small>Clientes tratados / mês</small><strong>${number.format(Math.round(out.treatedClients))}</strong></div>
-      <div><small>Conversões / mês</small><strong>${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(out.conversions)}</strong></div>
-      <div><small>Produção / mês</small><strong>${currency.format(out.monthlyProduction)}</strong></div>
-      <div><small>TA econômica / mês</small><strong>${currency.format(out.monthlyAdminEconomics)}</strong></div>
-      <div><small>Receita Astrion / mês</small><strong>${economic.astrion_revenue_rate == null ? "—" : currency.format(out.monthlyAstrionRevenue)}</strong></div>
-      <div><small>Receita Astrion no horizonte</small><strong>${economic.astrion_revenue_rate == null && !Number(economic.upfront_fee || 0) ? "—" : currency.format(out.astrionRevenueHorizon)}</strong></div>
-      ${isOwnAdmin ? `<div><small>Resultado operacional simples / mês</small><strong>${currency.format(out.simpleOperatingResult)}</strong></div><div><small>Payback simples</small><strong>${out.simplePayback == null ? "—" : `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(out.simplePayback)} meses`}</strong></div>` : ""}
+    <div class="detail-section__head"><div><span class="eyebrow">Modelo econômico padronizado</span><h3>Projeção de 10 anos + run-off</h3><p>As premissas operacionais, comerciais, tributárias e de portfólio são idênticas em toda a carteira. Nesta oportunidade varia apenas a base de ${number.format(base)} clientes.</p></div><span class="source-badge source-badge--estimativa_padrao">Modelo 10a</span></div>
+    <div class="bp-output-grid">
+      <div><small>Base de clientes</small><strong>${number.format(base)}</strong></div>
+      <div><small>Clientes tratados</small><strong>${number.format(Math.round(out.treatedClients))}</strong></div>
+      <div><small>Cobertura da base</small><strong>${pct(out.coverageRate)}</strong></div>
+      <div><small>Cotas estimadas</small><strong>${new Intl.NumberFormat("pt-BR",{maximumFractionDigits:0}).format(out.quotasSold)}</strong></div>
+      <div><small>Produção · 10 anos</small><strong>${currency.format(out.productionHorizon)}</strong></div>
+      <div><small>TA nominal · run-off</small><strong>${currency.format(out.taNominalHorizon)}</strong></div>
+      <div><small>Receita Astrion · obrigação</small><strong>${currency.format(out.astrionRevenue)}</strong></div>
+      <div><small>Caixa Astrion esperado</small><strong>${currency.format(out.astrionCashExpected)}</strong></div>
+      <div><small>VPL incremental</small><strong>${currency.format(out.vplIncremental)}</strong></div>
+      <div><small>VPL fully loaded</small><strong>${currency.format(out.vplFullyLoaded)}</strong></div>
+      <div><small>Payback incremental</small><strong>${out.paybackIncremental ? "M" + out.paybackIncremental : "Não atingido"}</strong></div>
+      <div><small>Payback fully loaded</small><strong>${out.paybackFull ? "M" + out.paybackFull : "Não atingido"}</strong></div>
     </div>
-    <div class="economic-assumptions"><span>Conversão ${percent(economic.conversion_rate)}</span><span>Ticket ${money(economic.average_ticket)}</span><span>TA ${percent(economic.admin_fee_rate)}</span><span>Astrion ${percent(economic.astrion_revenue_rate)}</span><span>Horizonte ${economic.projection_months || "—"} meses</span></div>
-    ${model?.source_note ? `<p class="economic-source"><strong>Referência:</strong> ${escapeHTML(model.source_note)}</p>` : ""}
+    <div class="bp-kpi-grid">
+      <div><small>Produção · ano 1</small><strong>${currency.format(out.year1Production)}</strong></div>
+      <div><small>TA · ano 1</small><strong>${currency.format(out.year1Ta)}</strong></div>
+      <div><small>Astrion · ano 1</small><strong>${currency.format(out.year1AstrionRevenue)}</strong></div>
+      <div><small>Capacidade mensal plena</small><strong>${number.format(out.capacityClients)} clientes</strong></div>
+    </div>
+    <div class="economic-assumptions">
+      <span>50 operadores</span><span>250 clientes/FTE/mês</span><span>Ramp-up 6 meses</span><span>Conversão 1,75%</span><span>Ticket inicial ${currency.format(87389.636180473)}</span><span>Reajuste 4,5% a.a.</span><span>Astrion 0,25%</span><span>Desconto 18% a.a.</span>
+    </div>
+    <p class="economic-source"><strong>Metodologia:</strong> 120 meses de novas vendas, clientes únicos, sazonalidade setorial, comissionamento em 10 parcelas e run-off integral das safras.</p>
   </section>`;
 }
 
@@ -1368,7 +1392,7 @@ async function openDetail(id) {
     ...history.map(item => ({ kind: item.event_type === "created" ? "Cadastro" : "Alteração", text: item.description || historyDescription(item), date: item.created_at, user: ownerName(item.changed_by) }))
   ].sort((a,b) => new Date(b.date) - new Date(a.date));
   $("#detail-content").innerHTML = `
-    <section class="detail-hero">${(() => { const scenario = dashboardScenario(opportunity); const health = opportunityHealth(opportunity); return `<div class="detail-company-head">${companyLogoTemplate(opportunity, "md")}<div><span class="detail-method">${scenario.method === "OURIBANK" ? "BP próprio" : scenario.method === "MISSING_BASE" ? "Base pendente" : "Comparável · PagBank-like"}</span><strong class="health-pill health-pill--${health.tone}">${health.label} · ${health.score}</strong></div></div><div class="detail-hero__top"><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><p>${escapeHTML(opportunity.summary)}</p><div class="detail-metrics"><div><small>Receita comparável</small><strong>${scenario.astrionRevenue ? money(scenario.astrionRevenue) : "—"}</strong></div><div><small>Produção comparável / mês</small><strong>${scenario.productionMonthly == null ? "—" : money(scenario.productionMonthly)}</strong></div><div><small>Probabilidade</small><strong>${opportunity.probability || 0}%</strong></div><div><small>Receita ponderada</small><strong>${scenario.weightedRevenue ? money(scenario.weightedRevenue) : "—"}</strong></div></div>`; })()}</section>
+    <section class="detail-hero">${(() => { const scenario = dashboardScenario(opportunity); const health = opportunityHealth(opportunity); return `<div class="detail-company-head">${companyLogoTemplate(opportunity, "md")}<div><span class="detail-method">${scenario.method === "OURIBANK" ? "BP próprio" : scenario.method === "MISSING_BASE" ? "Base pendente" : "Modelo econômico · 10 anos"}</span><strong class="health-pill health-pill--${health.tone}">${health.label} · ${health.score}</strong></div></div><div class="detail-hero__top"><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><p>${escapeHTML(opportunity.summary)}</p><div class="detail-metrics"><div><small>Receita comparável</small><strong>${scenario.astrionRevenue ? money(scenario.astrionRevenue) : "—"}</strong></div><div><small>Produção comparável / mês</small><strong>${scenario.productionMonthly == null ? "—" : money(scenario.productionMonthly)}</strong></div><div><small>Probabilidade</small><strong>${opportunity.probability || 0}%</strong></div><div><small>Receita ponderada</small><strong>${scenario.weightedRevenue ? money(scenario.weightedRevenue) : "—"}</strong></div></div>`; })()}</section>
     ${economicSummaryTemplate(economics, opportunity)}
     ${roleIsManager() ? `<section class="detail-section"><h3>Condução comercial</h3><div class="inline-edit"><label>Etapa<select id="detail-status">${STATUSES.map(item => `<option ${item.value === opportunity.status ? "selected" : ""}>${item.value}</option>`).join("")}</select></label><label>Próxima ação<input id="detail-next-action" value="${escapeHTML(opportunity.next_action || "")}" placeholder="Defina o próximo passo"></label><label>Prazo<input id="detail-next-date" type="datetime-local" value="${toLocalInput(opportunity.next_action_date)}"></label><button class="btn btn--primary btn--small" id="save-quick-update" data-id="${id}">Atualizar condução</button></div></section>` : ""}
     <section class="detail-section"><h3>Empresa e contato</h3><div class="detail-grid"><div><small>CNPJ</small><strong>${escapeHTML(opportunity.cnpj || "Não informado")}</strong></div><div><small>Site</small>${safeHttpUrl(opportunity.website) ? `<a href="${escapeHTML(safeHttpUrl(opportunity.website))}" target="_blank" rel="noopener noreferrer">Abrir site ↗</a>` : "<strong>Não informado</strong>"}</div><div><small>Segmento</small><strong>${escapeHTML(opportunity.segment || "A confirmar")}</strong></div><div><small>Origem</small><strong>${escapeHTML(opportunity.source || "Não informada")}</strong></div><div><small>Contato</small><strong>${escapeHTML(opportunity.contact_name || "A confirmar")}${opportunity.contact_role ? ` · ${escapeHTML(opportunity.contact_role)}` : ""}</strong></div><div><small>E-mail</small>${opportunity.contact_email ? `<a href="mailto:${escapeHTML(opportunity.contact_email)}">${escapeHTML(opportunity.contact_email)}</a>` : "<strong>Não informado</strong>"}</div><div><small>Telefone</small><strong>${escapeHTML(opportunity.contact_phone || "Não informado")}</strong></div><div><small>Base potencial</small><strong>${opportunity.client_base !== null && opportunity.client_base !== undefined ? number.format(opportunity.client_base) : "Não informada"}</strong></div></div></section>
