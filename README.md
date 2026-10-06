@@ -146,24 +146,11 @@ O GitHub Pages publica HTML, CSS e JavaScript diretamente. Guia oficial: [Config
 Experiência que entende. Estratégia que transforma.
 
 
-## Modelos econômicos
+## Modelo econômico
 
-O CRM possui uma camada executiva de modelagem por oportunidade. Ela não substitui o Business Plan completo; serve para padronizar a leitura comercial e econômica no pipeline.
+O CRM possui uma camada executiva de modelagem econômica padronizada. Para oportunidades de consórcios, todas as premissas operacionais, comerciais, tributárias e de portfólio são mantidas; o único input econômico que varia por parceiro é a quantidade de clientes.
 
-Métricas padronizadas no dashboard:
-- **Produção mensal estimada**: volume de crédito/vendas estimado por mês.
-- **Receita Astrion em 12 meses**: remuneração recorrente estimada em 12 meses + eventual fee/upfront.
-- **Receita ponderada em 12 meses**: receita Astrion em 12 meses × probabilidade comercial.
+O modelo considera 120 meses de novas vendas, capacidade de 50 operadores, 250 clientes tratados por operador/mês, ramp-up de 6 meses, conversão de 1,75%, sazonalidade, mix de portfólio, reajuste nominal de 4,5% a.a., remuneração Astrion de 0,25%, tributação, custos e run-off integral.
 
-Biblioteca inicial:
-- Consórcios | Padrão Astrion
-- PagBank | 0,25% recorrente
-- PagBank | 0,20% + fee
-- Sofisa / BIB | Bottom-up
-- Fast Shop | Omnichannel
-- Ouribank | White Label
-- Ouribank | Administradora própria
-- Parceiros | Corretores e distribuição
-- Personalizado
+Ouribank permanece segregado por utilizar BP próprio de administradora de consórcios.
 
-O detalhe do modelo preserva premissas como base, cobertura mensal, FTEs, conversão, ticket médio, taxa de administração, remuneração Astrion, fee, horizonte, CAPEX, OPEX e receitas acessórias. DRE, run-off, VPL, TIR, payback regulatório e sensibilidades permanecem nos BPs específicos.
