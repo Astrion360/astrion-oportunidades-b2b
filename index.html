@@ -124,48 +124,83 @@
           </div>
         </div>
 
-        <div class="executive-kpis">
-          <article class="executive-kpi executive-kpi--primary">
-            <span class="executive-kpi__label">Receita Astrion modelada</span>
-            <strong id="kpi-potential">R$ 0</strong>
-            <small id="kpi-potential-detail">Modelo 10 anos + Ouribank</small>
-            <span class="executive-kpi__tag">CARTEIRA</span>
-          </article>
-          <article class="executive-kpi">
-            <span class="executive-kpi__label">Pipeline ponderado</span>
-            <strong id="kpi-weighted">R$ 0</strong>
-            <small>Receita Astrion × probabilidade</small>
-          </article>
-          <article class="executive-kpi">
-            <span class="executive-kpi__label">Produção · 10 anos</span>
-            <strong id="kpi-production-horizon">R$ 0</strong>
-            <small>120 meses de novas vendas</small>
-          </article>
-          <article class="executive-kpi">
-            <span class="executive-kpi__label">Receita TA nominal</span>
-            <strong id="kpi-ta-horizon">R$ 0</strong>
-            <small>Novas safras + run-off integral</small>
-          </article>
-          <article class="executive-kpi">
-            <span class="executive-kpi__label">VPL incremental</span>
-            <strong id="kpi-vpl-inc">R$ 0</strong>
-            <small>Caixa novo atribuível às operações</small>
-          </article>
-          <article class="executive-kpi">
-            <span class="executive-kpi__label">VPL fully loaded</span>
-            <strong id="kpi-vpl-full">R$ 0</strong>
-            <small>Inclui custo integral de Inside Sales</small>
-          </article>
-          <article class="executive-kpi">
-            <span class="executive-kpi__label">Clientes tratados</span>
-            <strong id="kpi-treated">0</strong>
-            <small id="kpi-treated-detail">clientes únicos</small>
-          </article>
-          <article class="executive-kpi">
-            <span class="executive-kpi__label">Cotas estimadas</span>
-            <strong id="kpi-sales">0</strong>
-            <small id="kpi-sales-detail">durante 120 meses de vendas</small>
-          </article>
+        <div class="stakeholder-kpis">
+          <section class="stakeholder-group stakeholder-group--astrion">
+            <header class="stakeholder-group__head">
+              <span class="stakeholder-group__tag">ASTRION</span>
+              <div><h3>Receita da Astrion</h3><p>Indicadores de remuneração e valor esperado do pipeline para a Astrion. Não representam receita do parceiro nem da administradora.</p></div>
+            </header>
+            <div class="stakeholder-group__grid stakeholder-group__grid--2">
+              <article class="executive-kpi executive-kpi--primary">
+                <span class="executive-kpi__label">Receita Astrion modelada</span>
+                <strong id="kpi-potential">R$ 0</strong>
+                <small id="kpi-potential-detail">0,25% sobre a produção modelada; Ouribank utiliza o fee do BP próprio.</small>
+              </article>
+              <article class="executive-kpi">
+                <span class="executive-kpi__label">Pipeline ponderado Astrion</span>
+                <strong id="kpi-weighted">R$ 0</strong>
+                <small>Receita Astrion modelada × probabilidade comercial de cada oportunidade.</small>
+              </article>
+            </div>
+          </section>
+
+          <section class="stakeholder-group stakeholder-group--partner">
+            <header class="stakeholder-group__head">
+              <span class="stakeholder-group__tag">PARCEIROS</span>
+              <div><h3>Economia e alcance do parceiro</h3><p>Números relacionados à empresa que disponibiliza a base, os canais e a distribuição. Não são receita da administradora.</p></div>
+            </header>
+            <div class="stakeholder-group__grid stakeholder-group__grid--3">
+              <article class="executive-kpi">
+                <span class="executive-kpi__label">Comissão dos parceiros</span>
+                <strong id="kpi-partner-commission">R$ 0</strong>
+                <small>Remuneração comercial gerada pelas vendas, conforme as faixas de 1,20%, 1,50% e 1,80% do modelo.</small>
+              </article>
+              <article class="executive-kpi">
+                <span class="executive-kpi__label">Base total dos parceiros</span>
+                <strong id="kpi-client-base">0</strong>
+                <small id="kpi-client-base-detail">Clientes/ecossistemas disponíveis para abordagem comercial.</small>
+              </article>
+              <article class="executive-kpi">
+                <span class="executive-kpi__label">Clientes efetivamente tratados</span>
+                <strong id="kpi-treated">0</strong>
+                <small id="kpi-treated-detail">Clientes únicos alcançados em até 120 meses, respeitando a capacidade operacional.</small>
+              </article>
+            </div>
+          </section>
+
+          <section class="stakeholder-group stakeholder-group--administrator">
+            <header class="stakeholder-group__head">
+              <span class="stakeholder-group__tag">ADMINISTRADORAS</span>
+              <div><h3>Economia das administradoras de consórcios</h3><p>Indicadores gerados dentro das administradoras que suportam as operações dos parceiros. Produção é volume de crédito; TA e VPL são métricas econômicas da administradora.</p></div>
+            </header>
+            <div class="stakeholder-group__grid stakeholder-group__grid--5">
+              <article class="executive-kpi">
+                <span class="executive-kpi__label">Produção em 10 anos</span>
+                <strong id="kpi-production-horizon">R$ 0</strong>
+                <small>Crédito nominal vendido em consórcios durante os 120 meses de novas vendas. Não é receita.</small>
+              </article>
+              <article class="executive-kpi">
+                <span class="executive-kpi__label">Cotas estimadas</span>
+                <strong id="kpi-sales">0</strong>
+                <small id="kpi-sales-detail">Quantidade projetada de cotas vendidas no período de originação.</small>
+              </article>
+              <article class="executive-kpi">
+                <span class="executive-kpi__label">Receita de TA nominal</span>
+                <strong id="kpi-ta-horizon">R$ 0</strong>
+                <small>Taxa de administração esperada ao longo das safras e do run-off, antes de comissões, custos e tributos.</small>
+              </article>
+              <article class="executive-kpi">
+                <span class="executive-kpi__label">VPL incremental da administradora</span>
+                <strong id="kpi-vpl-inc">R$ 0</strong>
+                <small>Valor econômico após parceiro, Astrion, squad, impostos e custos incrementais; não inclui todo o Inside Sales.</small>
+              </article>
+              <article class="executive-kpi">
+                <span class="executive-kpi__label">VPL fully loaded da administradora</span>
+                <strong id="kpi-vpl-full">R$ 0</strong>
+                <small>Visão conservadora que também incorpora o custo integral dos 50 operadores de Inside Sales.</small>
+              </article>
+            </div>
+          </section>
         </div>
 
         <div class="methodology-strip methodology-strip--seven">
