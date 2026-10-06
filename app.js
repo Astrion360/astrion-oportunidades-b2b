@@ -785,7 +785,7 @@ function renderPipeline() {
   $("#kanban").innerHTML = pipelineStatuses.map(meta => {
     const lane = items.filter(item => item.status === meta.value);
     const laneTotal = lane.reduce((sum, item) => sum + dashboardScenario(item).astrionRevenue, 0);
-    return `<section class="kanban-lane" data-status="${meta.value}" style="--status-color:${meta.color}"><header class="lane-head"><span class="lane-title"><i class="lane-dot"></i>${meta.value}</span><span class="lane-count">${lane.length}</span></header><div class="lane-total">${currency.format(laneTotal)} · receita comparável</div><div class="lane-cards">${lane.map(kanbanCardTemplate).join("") || `<div class="empty-state">Nenhuma oportunidade</div>`}</div></section>`;
+    return `<section class="kanban-lane" data-status="${meta.value}" style="--status-color:${meta.color}"><header class="lane-head"><span class="lane-title"><i class="lane-dot"></i>${meta.value}</span><span class="lane-count">${lane.length}</span></header><div class="lane-total">${currency.format(laneTotal)} · receita Astrion modelada</div><div class="lane-cards">${lane.map(kanbanCardTemplate).join("") || `<div class="empty-state">Nenhuma oportunidade</div>`}</div></section>`;
   }).join("");
   hydrateCompanyLogos($("#kanban"));
   bindKanbanDrag();
