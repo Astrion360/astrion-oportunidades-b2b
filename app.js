@@ -677,6 +677,52 @@ function calculateEconomics(economic = {}, opportunity = {}) {
   };
 }
 
+function bpKpisTemplate(economic) {
+  const data = economic?.bp_kpis || {};
+  const meta = {
+    clientes_tratados_120m: ["Clientes tratados · 120m", "number"],
+    cotas_vendidas_120m: ["Cotas vendidas · 120m", "number1"],
+    vpl_integrado: ["VPL integrado", "money"],
+    vpl_fully_loaded: ["VPL fully loaded", "money"],
+    base_ativa_modelo: ["Base ativa do modelo", "number"],
+    elegibilidade_pct: ["Elegibilidade", "percent"],
+    conversao_pct: ["Conversão", "percent"],
+    cotas_ano1: ["Cotas · ano 1", "number"],
+    receita_5a: ["Receita · 5 anos", "money"],
+    contratacoes_mes: ["Contratações / mês", "number1"],
+    cotas_liquidas_ano: ["Cotas líquidas / ano", "number1"],
+    persistencia_pct: ["Persistência", "percent"],
+    valor_ecossistema_ano1: ["Valor ecossistema · ano 1", "money"],
+    valor_ecossistema_5a: ["Valor ecossistema · 5 anos", "money"],
+    compradores_5a: ["Compradores · 5 anos", "number"],
+    cotas_5a: ["Cotas · 5 anos", "number"],
+    penetracao_pct: ["Penetração", "percent"],
+    remuneracao_parceiro_pct: ["Remuneração parceiro", "percent"],
+    tributos_pct: ["Tributos", "percent"],
+    implantacao: ["Implantação", "money"],
+    capital_inicial: ["Capital inicial", "money"],
+    funding_maximo: ["Funding máximo", "money"],
+    go_live_mes: ["Go-live", "month"],
+    break_even_ebitda_mes: ["Break-even EBITDA", "month"],
+    payback_mes: ["Payback", "month"],
+    ebitda_nominal_360m: ["EBITDA nominal · 360m", "money"],
+    vpl_m0: ["VPL M0", "money"],
+    cotas_ativas_maximas: ["Cotas ativas máximas", "number"]
+  };
+  const format = (value, type) => {
+    if (type === "money") return currency.format(Number(value));
+    if (type === "percent") return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(Number(value)) + "%";
+    if (type === "month") return "M" + number.format(Number(value));
+    if (type === "number1") return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(Number(value));
+    return number.format(Number(value));
+  };
+  const cards = Object.entries(data).filter(([key]) => meta[key]).map(([key, value]) => {
+    const item = meta[key];
+    return '<div><small>' + escapeHTML(item[0]) + '</small><strong>' + escapeHTML(format(value, item[1])) + '</strong></div>';
+  });
+  return cards.length ? '<div class="bp-kpi-grid">' + cards.join("") + '</div>' : "";
+}
+
 function economicDirectOutputsTemplate(economic) {
   if (!economic) return "";
   const labels = { BP_REAL: "BP realizado", MODELO_ESPECIFICO: "Modelo específico", ESTIMATIVA_PADRAO: "Estimativa pela base" };
@@ -690,7 +736,7 @@ function economicDirectOutputsTemplate(economic) {
   addMoney("Receita operação/parceiro · horizonte", economic.horizon_operation_revenue);
   addMoney("Receita Astrion · horizonte", economic.horizon_astrion_revenue);
   const source = economic.source_reference ? '<p class="economic-source"><strong>Origem:</strong> ' + escapeHTML(economic.source_reference) + (economic.source_date ? ' · ' + formatDate(economic.source_date, { year: true }) : '') + '</p>' : '';
-  return '<div class="bp-output-block"><div class="economic-title-row"><span class="source-badge source-badge--' + normalize(economic.source_type || "manual") + '">' + escapeHTML(sourceLabel) + '</span></div>' + (cards.length ? '<div class="bp-output-grid">' + cards.join("") + '</div>' : '') + source + '</div>';
+  return '<div class="bp-output-block"><div class="economic-title-row"><span class="source-badge source-badge--' + normalize(economic.source_type || "manual") + '">' + escapeHTML(sourceLabel) + '</span></div>' + (cards.length ? '<div class="bp-output-grid">' + cards.join("") + '</div>' : '') + bpKpisTemplate(economic) + source + '</div>';
 }
 
 function economicSummaryTemplate(economic, opportunity) {
