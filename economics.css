@@ -36,3 +36,10 @@
 .mini-source--bp_real{background:#eef8f2;border-color:#b7e0c5;color:#067647}
 .mini-source--modelo_especifico{background:#eef4ff;border-color:#c7d7fe;color:#175cd3}
 .mini-source--estimativa_padrao{background:#fff7e8;border-color:#f2d39b;color:#8a5b00}
+
+.bp-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0 0 12px}
+.bp-kpi-grid>div{padding:9px 10px;border-radius:10px;background:#f7f9fc;border:1px solid var(--line);min-width:0}
+.bp-kpi-grid small{display:block;color:var(--ink-500);font-size:7px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
+.bp-kpi-grid strong{display:block;color:var(--ink-900);font:750 11px/1.25 "Manrope";overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+@media(max-width:760px){.bp-kpi-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:480px){.bp-kpi-grid{grid-template-columns:1fr}}
