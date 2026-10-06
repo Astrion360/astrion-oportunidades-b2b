@@ -336,11 +336,11 @@ function renderPipeline() {
   const items = filteredOpportunities();
   const pipelineStatuses = STATUSES.filter(status => !["Perdida", "Pausada"].includes(status.value));
   const total = items.filter(item => !isClosed(item)).reduce((sum, item) => sum + Number(item.potential_revenue || 0), 0);
-  $("#pipeline-summary").innerHTML = `<span><strong>${items.length}</strong> registros visíveis</span><span>·</span><span><strong>${currency.format(total)}</strong> em pipeline ativo</span>`;
+  $("#pipeline-summary").innerHTML = `<span><strong>${items.length}</strong> registros visíveis</span><span>·</span><span><strong>${currency.format(total)}</strong> de receita Astrion 12m</span>`;
   $("#kanban").innerHTML = pipelineStatuses.map(meta => {
     const lane = items.filter(item => item.status === meta.value);
     const laneTotal = lane.reduce((sum, item) => sum + Number(item.potential_revenue || 0), 0);
-    return `<section class="kanban-lane" data-status="${meta.value}" style="--status-color:${meta.color}"><header class="lane-head"><span class="lane-title"><i class="lane-dot"></i>${meta.value}</span><span class="lane-count">${lane.length}</span></header><div class="lane-total">${currency.format(laneTotal)} em potencial</div><div class="lane-cards">${lane.map(kanbanCardTemplate).join("") || `<div class="empty-state">Nenhuma oportunidade</div>`}</div></section>`;
+    return `<section class="kanban-lane" data-status="${meta.value}" style="--status-color:${meta.color}"><header class="lane-head"><span class="lane-title"><i class="lane-dot"></i>${meta.value}</span><span class="lane-count">${lane.length}</span></header><div class="lane-total">${currency.format(laneTotal)} · receita Astrion 12m</div><div class="lane-cards">${lane.map(kanbanCardTemplate).join("") || `<div class="empty-state">Nenhuma oportunidade</div>`}</div></section>`;
   }).join("");
   bindKanbanDrag();
 }
