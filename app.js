@@ -423,6 +423,60 @@ function renderTeam() {
   if (!roleIsAdmin()) return;
   $("#team-count").textContent = `${state.profiles.length} ${state.profiles.length === 1 ? "usuário" : "usuários"}`;
   $("#team-table").innerHTML = state.profiles.map(profile => `<tr data-id="${profile.id}"><td><div class="owner-cell"><span class="mini-avatar">${initials(profile.full_name)}</span><strong>${escapeHTML(profile.full_name || "Sem nome")}</strong></div></td><td>${escapeHTML(profile.email || "—")}</td><td><select class="field-select role-select" ${profile.id === state.profile.id ? "disabled" : ""}><option value="admin" ${profile.role === "admin" ? "selected" : ""}>Administrador</option><option value="collaborator" ${profile.role === "collaborator" ? "selected" : ""}>Gestor comercial</option><option value="submitter" ${profile.role === "submitter" ? "selected" : ""}>Cadastrador</option></select></td><td><span class="status-pill" style="--status-color:${profile.active !== false ? "#079455" : "#98a2b3"}">${profile.active !== false ? "Ativo" : "Inativo"}</span></td><td>${profile.id === state.profile.id ? "" : `<button class="row-action toggle-user" title="${profile.active !== false ? "Desativar" : "Ativar"}">${profile.active !== false ? "×" : "✓"}</button>`}</td></tr>`).join("");
+  renderAccessPanel();
+}
+
+function renderAccessPanel() {
+  const panel = $("#access-panel");
+  if (!panel) return;
+  const pending = state.accessAllowlist.filter(item => !item.used_at);
+  $("#invite-count").textContent = `${pending.length} ${pending.length === 1 ? "convite" : "convites"}`;
+  $("#invite-table").innerHTML = pending.length ? pending.map(item => `<tr data-email="${escapeHTML(item.email)}"><td><strong>${escapeHTML(item.full_name || "—")}</strong></td><td>${escapeHTML(item.email)}</td><td>${escapeHTML(ROLE_LABELS[item.role] || item.role)}</td><td><span class="status-pill" style="--status-color:${item.active ? "#079455" : "#98a2b3"}">${item.active ? "Autorizado" : "Suspenso"}</span></td><td class="invite-actions"><button class="row-action copy-invite" title="Copiar link">↗</button><button class="row-action toggle-invite" title="${item.active ? "Suspender" : "Reativar"}">${item.active ? "×" : "✓"}</button></td></tr>`).join("") : `<tr><td colspan="5">${emptyTemplate("Nenhum convite pendente.")}</td></tr>`;
+}
+
+async function createAccessInvite(event) {
+  event.preventDefault();
+  const email = $("#invite-email").value.trim().toLowerCase();
+  const payload = { email, full_name: $("#invite-name").value.trim(), role: $("#invite-role").value, active: true, created_by: state.currentUser.id };
+  try {
+    const { error } = await state.supabase.from("access_allowlist").upsert(payload, { onConflict: "email" });
+    if (error) throw error;
+    await refreshOnlineData();
+    renderTeam();
+    $("#invite-form").reset();
+    copyInviteLink(email);
+    toast("Acesso autorizado e link de convite copiado.", "success");
+  } catch (error) { handleError(error); }
+}
+
+function copyInviteLink(email) {
+  const url = new URL(window.location.href);
+  url.hash = "";
+  url.search = "";
+  url.searchParams.set("invite", "1");
+  url.searchParams.set("email", email);
+  navigator.clipboard?.writeText(url.href).catch(() => {});
+  return url.href;
+}
+
+async function handleInviteAction(event) {
+  const button = event.target.closest(".copy-invite, .toggle-invite");
+  if (!button) return;
+  const email = button.closest("tr").dataset.email;
+  const invite = state.accessAllowlist.find(item => item.email === email);
+  if (!invite) return;
+  if (button.classList.contains("copy-invite")) {
+    copyInviteLink(email);
+    toast("Link de convite copiado.", "success");
+    return;
+  }
+  try {
+    const { error } = await state.supabase.from("access_allowlist").update({ active: !invite.active }).eq("email", email);
+    if (error) throw error;
+    await refreshOnlineData();
+    renderTeam();
+    toast(invite.active ? "Convite suspenso." : "Convite reativado.", "success");
+  } catch (error) { handleError(error); }
 }
 
 function emptyTemplate(message) { return `<div class="empty-state">${escapeHTML(message)}</div>`; }
@@ -570,11 +624,11 @@ async function openDetail(id) {
     ...history.map(item => ({ kind: item.event_type === "created" ? "Cadastro" : "Alteração", text: item.description || historyDescription(item), date: item.created_at, user: ownerName(item.changed_by) }))
   ].sort((a,b) => new Date(b.date) - new Date(a.date));
   $("#detail-content").innerHTML = `
-    <section class="detail-hero"><div class="detail-hero__top"><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><p>${escapeHTML(opportunity.summary)}</p><div class="detail-metrics"><div><small>Potencial</small><strong>${currency.format(Number(opportunity.potential_revenue || 0))}</strong></div><div><small>Probabilidade</small><strong>${opportunity.probability || 0}%</strong></div><div><small>Ponderado</small><strong>${currency.format(Number(opportunity.potential_revenue || 0) * Number(opportunity.probability || 0) / 100)}</strong></div></div></section>
+    <section class="detail-hero"><div class="detail-hero__top"><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><p>${escapeHTML(opportunity.summary)}</p><div class="detail-metrics"><div><small>Potencial</small><strong>${money(opportunity.potential_revenue)}</strong></div><div><small>Produção estimada</small><strong>${money(opportunity.expected_sales)}</strong></div><div><small>Probabilidade</small><strong>${opportunity.probability || 0}%</strong></div><div><small>Ponderado</small><strong>${opportunity.potential_revenue == null ? "—" : currency.format(Number(opportunity.potential_revenue) * Number(opportunity.probability || 0) / 100)}</strong></div></div></section>
     ${roleIsManager() ? `<section class="detail-section"><h3>Condução comercial</h3><div class="inline-edit"><label>Etapa<select id="detail-status">${STATUSES.map(item => `<option ${item.value === opportunity.status ? "selected" : ""}>${item.value}</option>`).join("")}</select></label><label>Próxima ação<input id="detail-next-action" value="${escapeHTML(opportunity.next_action || "")}" placeholder="Defina o próximo passo"></label><label>Prazo<input id="detail-next-date" type="datetime-local" value="${toLocalInput(opportunity.next_action_date)}"></label><button class="btn btn--primary btn--small" id="save-quick-update" data-id="${id}">Atualizar condução</button></div></section>` : ""}
-    <section class="detail-section"><h3>Empresa e contato</h3><div class="detail-grid"><div><small>Segmento</small><strong>${escapeHTML(opportunity.segment || "A confirmar")}</strong></div><div><small>Origem</small><strong>${escapeHTML(opportunity.source || "Não informada")}</strong></div><div><small>Contato</small><strong>${escapeHTML(opportunity.contact_name || "A confirmar")}${opportunity.contact_role ? ` · ${escapeHTML(opportunity.contact_role)}` : ""}</strong></div><div><small>E-mail</small>${opportunity.contact_email ? `<a href="mailto:${escapeHTML(opportunity.contact_email)}">${escapeHTML(opportunity.contact_email)}</a>` : "<strong>Não informado</strong>"}</div><div><small>Telefone</small><strong>${escapeHTML(opportunity.contact_phone || "Não informado")}</strong></div><div><small>Base potencial</small><strong>${opportunity.client_base ? number.format(opportunity.client_base) : "Não informada"}</strong></div></div></section>
+    <section class="detail-section"><h3>Empresa e contato</h3><div class="detail-grid"><div><small>CNPJ</small><strong>${escapeHTML(opportunity.cnpj || "Não informado")}</strong></div><div><small>Site</small>${safeHttpUrl(opportunity.website) ? `<a href="${escapeHTML(safeHttpUrl(opportunity.website))}" target="_blank" rel="noopener noreferrer">Abrir site ↗</a>` : "<strong>Não informado</strong>"}</div><div><small>Segmento</small><strong>${escapeHTML(opportunity.segment || "A confirmar")}</strong></div><div><small>Origem</small><strong>${escapeHTML(opportunity.source || "Não informada")}</strong></div><div><small>Contato</small><strong>${escapeHTML(opportunity.contact_name || "A confirmar")}${opportunity.contact_role ? ` · ${escapeHTML(opportunity.contact_role)}` : ""}</strong></div><div><small>E-mail</small>${opportunity.contact_email ? `<a href="mailto:${escapeHTML(opportunity.contact_email)}">${escapeHTML(opportunity.contact_email)}</a>` : "<strong>Não informado</strong>"}</div><div><small>Telefone</small><strong>${escapeHTML(opportunity.contact_phone || "Não informado")}</strong></div><div><small>Base potencial</small><strong>${opportunity.client_base !== null && opportunity.client_base !== undefined ? number.format(opportunity.client_base) : "Não informada"}</strong></div></div></section>
     <section class="detail-section"><h3>Soluções e particularidades</h3><div class="detail-tags">${(opportunity.interests || []).map(item => `<span>${escapeHTML(item)}</span>`).join("") || "<span>A confirmar</span>"}</div><p style="color:var(--ink-500);font-size:10px;line-height:1.6;margin:12px 0 0">${escapeHTML(opportunity.particularities || "Nenhuma particularidade registrada.")}</p></section>
-    <section class="detail-section"><h3>Datas e referências</h3><div class="detail-grid"><div><small>Próxima ação</small><strong class="${isOverdue(opportunity) ? "due overdue" : ""}">${escapeHTML(opportunity.next_action || "A definir")} · ${formatDate(opportunity.next_action_date, { time: true })}</strong></div><div><small>Reunião</small><strong>${formatDate(opportunity.meeting_date, { time: true })}</strong></div><div><small>Fechamento previsto</small><strong>${formatDate(opportunity.expected_close_date, { year: true })}</strong></div><div><small>Responsável</small><strong>${escapeHTML(owner?.full_name || "A definir")}</strong></div>${opportunity.document_link ? `<div><small>Documento</small><a href="${escapeHTML(opportunity.document_link)}" target="_blank" rel="noopener">Abrir documento ↗</a></div>` : ""}</div></section>
+    <section class="detail-section"><h3>Datas e referências</h3><div class="detail-grid"><div><small>Próxima ação</small><strong class="${isOverdue(opportunity) ? "due overdue" : ""}">${escapeHTML(opportunity.next_action || "A definir")} · ${formatDate(opportunity.next_action_date, { time: true })}</strong></div><div><small>Reunião</small><strong>${formatDate(opportunity.meeting_date, { time: true })}</strong></div><div><small>Fechamento previsto</small><strong>${formatDate(opportunity.expected_close_date, { year: true })}</strong></div><div><small>Responsável</small><strong>${escapeHTML(owner?.full_name || "A definir")}</strong></div><div><small>Criada em</small><strong>${formatDate(opportunity.created_at, { time: true, year: true })}</strong></div><div><small>Última atualização</small><strong>${formatDate(opportunity.updated_at, { time: true, year: true })}</strong></div>${safeHttpUrl(opportunity.document_link) ? `<div><small>Documento</small><a href="${escapeHTML(safeHttpUrl(opportunity.document_link))}" target="_blank" rel="noopener noreferrer">Abrir documento ↗</a></div>` : ""}${opportunity.loss_reason ? `<div class="span-2"><small>Motivo da perda</small><strong>${escapeHTML(opportunity.loss_reason)}</strong></div>` : ""}</div></section>
     ${roleIsManager() ? `<section class="detail-section"><h3>Registrar atividade</h3><form id="activity-form" class="activity-form"><select id="activity-type"><option>Nota</option><option>Ligação</option><option>E-mail</option><option>Reunião</option><option>Tarefa</option></select><input id="activity-description" required placeholder="Descreva a interação ou decisão"><button class="btn btn--primary btn--small" type="submit">Adicionar</button></form></section>` : ""}
     <section class="detail-section"><h3>Histórico</h3><div class="timeline">${timeline.length ? timeline.map(item => `<div class="timeline-item"><strong>${escapeHTML(item.kind)}</strong><p>${escapeHTML(item.text)}</p><time>${formatDate(item.date, { time: true, year: true })} · ${escapeHTML(item.user)}</time></div>`).join("") : emptyTemplate("Ainda não há movimentações.")}</div></section>
     <div class="detail-actions">${roleIsManager() ? `<button class="btn btn--ghost" id="edit-opportunity" data-id="${id}">Editar cadastro</button>` : ""}${roleIsAdmin() ? `<button class="btn btn--danger" id="delete-opportunity" data-id="${id}">Excluir</button>` : ""}</div>`;
@@ -870,9 +924,12 @@ function handleError(error) {
   const translations = {
     "Invalid login credentials": "E-mail ou senha incorretos.",
     "User already registered": "Este e-mail já possui cadastro.",
-    "Email not confirmed": "Confirme seu e-mail antes de entrar."
+    "Email not confirmed": "Confirme seu e-mail antes de entrar.",
+    "Database error saving new user": "Este e-mail não está autorizado ou o convite não está ativo."
   };
-  toast(translations[error?.message] || error?.message || "Não foi possível concluir a ação.", "error");
+  const raw = error?.message || "";
+  const friendly = raw.includes("duplicate key") && raw.includes("opportunities_cnpj_unique") ? "Já existe uma oportunidade cadastrada com este CNPJ." : (translations[raw] || raw || "Não foi possível concluir a ação.");
+  toast(friendly, "error");
 }
 
 initialize();
