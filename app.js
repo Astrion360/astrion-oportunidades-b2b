@@ -224,6 +224,7 @@ function startApp() {
   if (!roleIsManager()) state.view = "opportunities";
   switchView(state.view);
   renderAll();
+  armSessionSecurity();
 }
 
 function applyPermissions() {
@@ -1176,6 +1177,7 @@ async function openDetail(id) {
     <section class="detail-section"><h3>Histórico</h3><div class="timeline">${timeline.length ? timeline.map(item => `<div class="timeline-item"><strong>${escapeHTML(item.kind)}</strong><p>${escapeHTML(item.text)}</p><time>${formatDate(item.date, { time: true, year: true })} · ${escapeHTML(item.user)}</time></div>`).join("") : emptyTemplate("Ainda não há movimentações.")}</div></section>
     <div class="detail-actions">${roleIsManager() ? `<button class="btn btn--ghost" id="edit-opportunity" data-id="${id}">Editar cadastro</button>` : ""}${roleIsAdmin() ? `<button class="btn btn--danger" id="delete-opportunity" data-id="${id}">Excluir</button>` : ""}</div>`;
   openLayer("detail-drawer");
+  hydrateCompanyLogos($("#detail-drawer"));
   bindDetailActions(id, economics);
 }
 
@@ -1299,15 +1301,38 @@ function openMobileMenu() { $("#sidebar").classList.add("open"); $("#menu-overla
 function closeMobileMenu() { $("#sidebar").classList.remove("open"); $("#menu-overlay").classList.remove("open"); }
 
 function exportCSV() {
-  const headers = ["Empresa","CNPJ","Site","Status","Prioridade","Segmento","Modelo","Origem","Base potencial","Contato","Cargo","E-mail","Telefone","Soluções","Receita Astrion 12m","Produção mensal / média estimada","Probabilidade","Responsável","Próxima ação","Prazo","Reunião","Previsão de fechamento","Documento","Motivo de perda","Resumo","Particularidades","Criado em","Atualizado em"];
-  const rows = filteredOpportunities().map(item => [item.company,item.cnpj,item.website,item.status,item.priority,item.segment,item.channel,item.source,item.client_base,item.contact_name,item.contact_role,item.contact_email,item.contact_phone,(item.interests||[]).join(", "),item.potential_revenue,item.expected_sales,item.probability,ownerName(item.owner_id),item.next_action,item.next_action_date,item.meeting_date,item.expected_close_date,item.document_link,item.loss_reason,item.summary,item.particularities,item.created_at,item.updated_at]);
+  const headers = [
+    "Empresa","CNPJ","Site","Status","Prioridade","Segmento","Modelo","Origem","Base potencial",
+    "Contato","Cargo","E-mail","Telefone","Soluções",
+    "Método comparável","Receita Astrion comparável","Produção mensal comparável","Produção anual comparável",
+    "Probabilidade","Receita ponderada","Health score","Health status",
+    "Fonte econômica","BP/Modelo de referência","Produção ano 1 BP","Receita operação ano 1 BP","Receita Astrion ano 1 BP",
+    "Produção horizonte BP","Receita operação horizonte BP","Receita Astrion horizonte BP",
+    "Responsável","Próxima ação","Prazo","Reunião","Previsão de fechamento","Documento","Motivo de perda",
+    "Resumo","Particularidades","Criado em","Atualizado em"
+  ];
+  const rows = filteredOpportunities().map(item => {
+    const scenario = dashboardScenario(item);
+    const health = opportunityHealth(item);
+    const economic = economicsFor(item.id);
+    return [
+      item.company,item.cnpj,item.website,item.status,item.priority,item.segment,item.channel,item.source,item.client_base,
+      item.contact_name,item.contact_role,item.contact_email,item.contact_phone,(item.interests||[]).join(", "),
+      scenario.method,scenario.astrionRevenue,scenario.productionMonthly,scenario.productionAnnual,
+      item.probability,scenario.weightedRevenue,health.score,health.label,
+      economic?.source_type,economic?.source_reference,economic?.year1_production,economic?.year1_operation_revenue,economic?.year1_astrion_revenue,
+      economic?.horizon_production,economic?.horizon_operation_revenue,economic?.horizon_astrion_revenue,
+      ownerName(item.owner_id),item.next_action,item.next_action_date,item.meeting_date,item.expected_close_date,item.document_link,item.loss_reason,
+      item.summary,item.particularities,item.created_at,item.updated_at
+    ];
+  });
   const csv = "\ufeff" + [headers, ...rows].map(row => row.map(value => `"${String(value ?? "").replaceAll('"','""')}"`).join(";")).join("\n");
   const link = document.createElement("a");
   link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-  link.download = `oportunidades-astrion-${dateKey(new Date())}.csv`;
+  link.download = `crm-astrion-executivo-${dateKey(new Date())}.csv`;
   link.click();
   URL.revokeObjectURL(link.href);
-  toast("Relatório exportado em CSV.", "success");
+  toast("Relatório executivo exportado em CSV.", "success");
 }
 
 function renderAuthMode() {
@@ -1436,9 +1461,33 @@ async function handleRecoveryPassword(event) {
   finally { button.disabled = false; }
 }
 
+let idleLogoutTimer = null;
+let sessionSecurityBound = false;
+const IDLE_TIMEOUT_MS = 2 * 60 * 60 * 1000;
+
+function resetIdleLogoutTimer() {
+  if (!state.online || !state.currentUser) return;
+  clearTimeout(idleLogoutTimer);
+  idleLogoutTimer = setTimeout(async () => {
+    await handleLogout();
+    toast("Sessão encerrada após 2 horas de inatividade.", "error");
+  }, IDLE_TIMEOUT_MS);
+}
+
+function armSessionSecurity() {
+  if (!state.online || !state.currentUser) return;
+  resetIdleLogoutTimer();
+  if (sessionSecurityBound) return;
+  sessionSecurityBound = true;
+  ["pointerdown","keydown","touchstart"].forEach(eventName => document.addEventListener(eventName, resetIdleLogoutTimer, { passive: true }));
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) resetIdleLogoutTimer(); });
+}
+
 async function handleLogout() {
-  await state.supabase.auth.signOut();
+  clearTimeout(idleLogoutTimer);
+  if (state.supabase) await state.supabase.auth.signOut();
   state.currentUser = state.profile = null;
+  state.economics = [];
   showAuth();
 }
 
