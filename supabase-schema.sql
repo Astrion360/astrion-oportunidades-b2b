@@ -739,3 +739,107 @@ with check (
     and (select private.current_user_role()) = 'submitter'
   )
 );
+
+
+-- 7. Modelos econômicos executivos -------------------------------------------
+-- Camada nível 1 do CRM: premissas comparáveis e outputs executivos.
+-- O BP completo permanece como referência para DRE, runoff, VPL, TIR e sensibilidades.
+
+create table if not exists public.economic_models (
+  model_key text primary key,
+  name text not null,
+  family text not null,
+  description text,
+  defaults jsonb not null default '{}'::jsonb,
+  source_note text,
+  active boolean not null default true,
+  sort_order smallint not null default 100,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.economic_models enable row level security;
+
+drop policy if exists "economic_models_select" on public.economic_models;
+create policy "economic_models_select" on public.economic_models
+for select to authenticated using (active = true);
+
+grant select on public.economic_models to authenticated;
+revoke all on public.economic_models from anon;
+
+drop trigger if exists economic_models_set_updated_at on public.economic_models;
+create trigger economic_models_set_updated_at
+before update on public.economic_models
+for each row execute procedure private.set_updated_at();
+
+insert into public.economic_models (model_key, name, family, description, defaults, source_note, active, sort_order)
+values
+('astrion_consorcios_padrao','Consórcios | Padrão Astrion','Consórcios','Modelo executivo comparável para oportunidades B2B/B2B2C de consórcios.',jsonb_build_object('conversion_rate',1.5,'average_ticket',95243,'admin_fee_rate',17,'clients_per_fte_month',250,'projection_months',12),'Padrão consolidado dos estudos Astrion; capacidade e cobertura mensal devem ser ajustadas por oportunidade.',true,10),
+('pagbank_025','PagBank | 0,25% recorrente','Consórcios','Referência do balcão PagBank com remuneração recorrente Astrion.',jsonb_build_object('conversion_rate',1.75,'average_ticket',95243,'admin_fee_rate',17.5,'clients_per_fte_month',250,'astrion_revenue_rate',0.25,'projection_months',120),'Referência do simulador PagBank GOLD; premissas devem ser revalidadas antes de uso comercial.',true,20),
+('pagbank_020_fee','PagBank | 0,20% + fee','Consórcios','Alternativa PagBank com remuneração recorrente menor e fee de originação.',jsonb_build_object('conversion_rate',1.75,'average_ticket',95243,'admin_fee_rate',17.5,'clients_per_fte_month',250,'astrion_revenue_rate',0.20,'upfront_fee',500000,'projection_months',120),'Alternativa discutida no modelo PagBank.',true,30),
+('sofisa_bib','Sofisa / BIB | Bottom-up','Consórcios','Modelo bottom-up para bancos com distribuição via gerentes/agências e base PJ.',jsonb_build_object('conversion_rate',1.5,'average_ticket',95243,'admin_fee_rate',17,'projection_months',12),'Referência dos BPs Sofisa/BIB; capacidade comercial deve refletir gerentes, agências e abordagem.',true,40),
+('fastshop_omnichannel','Fast Shop | Omnichannel','Consórcios','Modelo de distribuição omnicanal com funil por canal e potencial de acessórios.',jsonb_build_object('conversion_rate',1.5,'average_ticket',95243,'admin_fee_rate',17,'projection_months',12),'Referência do estudo Fast Shop; ajustar cobertura, canais, recorrência e acessórios.',true,50),
+('ouribank_white_label','Ouribank | White Label','Consórcios','Referência para operação white label; remuneração do banco e da Astrion devem ser preenchidas conforme negociação.',jsonb_build_object('average_ticket',95243,'admin_fee_rate',17,'projection_months',60),'Estrutura de comparação Ouribank White Label.',true,60),
+('ouribank_adm_propria','Ouribank | Administradora própria','Administradora própria','Referência para administradora própria com CAPEX, OPEX e receita econômica da taxa de administração.',jsonb_build_object('average_ticket',95243,'admin_fee_rate',17,'projection_months',60),'Estrutura de comparação Ouribank administradora própria; CAPEX/OPEX devem vir do BP vigente.',true,70),
+('parceiros_corretores','Parceiros | Corretores e distribuição','B2B2C','Modelo simplificado para canal de parceiros/corretores.',jsonb_build_object('average_ticket',95243,'admin_fee_rate',17,'astrion_revenue_rate',1,'projection_months',12),'Referência do simulador de parceiros Astrion.',true,80),
+('custom','Personalizado','Personalizado','Modelo sem premissas pré-carregadas.','{}'::jsonb,'Preenchimento livre.',true,999)
+on conflict (model_key) do update
+set name=excluded.name, family=excluded.family, description=excluded.description,
+    defaults=excluded.defaults, source_note=excluded.source_note, active=excluded.active,
+    sort_order=excluded.sort_order, updated_at=now();
+
+create table if not exists public.opportunity_economics (
+  opportunity_id uuid primary key references public.opportunities(id) on delete cascade,
+  model_key text not null references public.economic_models(model_key),
+  base_clients bigint check (base_clients is null or base_clients >= 0),
+  treatment_rate_month numeric(8,4) check (treatment_rate_month is null or (treatment_rate_month >= 0 and treatment_rate_month <= 100)),
+  fte_count numeric(10,2) check (fte_count is null or fte_count >= 0),
+  clients_per_fte_month integer check (clients_per_fte_month is null or clients_per_fte_month >= 0),
+  conversion_rate numeric(8,4) check (conversion_rate is null or (conversion_rate >= 0 and conversion_rate <= 100)),
+  average_ticket numeric(24,2) check (average_ticket is null or average_ticket >= 0),
+  admin_fee_rate numeric(8,4) check (admin_fee_rate is null or (admin_fee_rate >= 0 and admin_fee_rate <= 100)),
+  astrion_revenue_rate numeric(8,4) check (astrion_revenue_rate is null or (astrion_revenue_rate >= 0 and astrion_revenue_rate <= 100)),
+  upfront_fee numeric(24,2) check (upfront_fee is null or upfront_fee >= 0),
+  projection_months integer check (projection_months is null or projection_months between 1 and 600),
+  capex numeric(24,2) check (capex is null or capex >= 0),
+  monthly_opex numeric(24,2) check (monthly_opex is null or monthly_opex >= 0),
+  accessory_monthly_revenue numeric(24,2) check (accessory_monthly_revenue is null or accessory_monthly_revenue >= 0),
+  notes text,
+  updated_by uuid references public.profiles(id) on delete set null default auth.uid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.opportunity_economics enable row level security;
+
+drop policy if exists "opportunity_economics_select" on public.opportunity_economics;
+create policy "opportunity_economics_select" on public.opportunity_economics
+for select to authenticated
+using ((select private.current_user_role()) in ('admin','collaborator'));
+
+drop policy if exists "opportunity_economics_insert" on public.opportunity_economics;
+create policy "opportunity_economics_insert" on public.opportunity_economics
+for insert to authenticated
+with check ((select private.current_user_role()) in ('admin','collaborator') and updated_by = (select auth.uid()));
+
+drop policy if exists "opportunity_economics_update" on public.opportunity_economics;
+create policy "opportunity_economics_update" on public.opportunity_economics
+for update to authenticated
+using ((select private.current_user_role()) in ('admin','collaborator'))
+with check ((select private.current_user_role()) in ('admin','collaborator') and updated_by = (select auth.uid()));
+
+drop policy if exists "opportunity_economics_delete" on public.opportunity_economics;
+create policy "opportunity_economics_delete" on public.opportunity_economics
+for delete to authenticated
+using ((select private.current_user_role()) = 'admin');
+
+grant select, insert, update, delete on public.opportunity_economics to authenticated;
+revoke all on public.opportunity_economics from anon;
+
+drop trigger if exists opportunity_economics_set_updated_at on public.opportunity_economics;
+create trigger opportunity_economics_set_updated_at
+before update on public.opportunity_economics
+for each row execute procedure private.set_updated_at();
+
+create index if not exists opportunity_economics_model_key_idx
+on public.opportunity_economics(model_key);
