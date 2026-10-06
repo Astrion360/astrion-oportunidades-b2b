@@ -564,3 +564,178 @@ drop function if exists public.audit_opportunity_change();
 drop function if exists public.handle_new_user();
 drop function if exists public.set_updated_at();
 drop function if exists public.current_user_role();
+
+
+-- 6. Revisão CRM 2026-10 -------------------------------------------------------
+-- Hardening aplicado ao ambiente de produção: campos econômicos ampliados,
+-- CNPJ único, cadastro somente por e-mail autorizado e restrição adicional
+-- para usuários cadastradores.
+
+alter table public.opportunities
+  alter column potential_revenue type numeric(24,2),
+  alter column expected_sales type numeric(24,2),
+  alter column potential_revenue drop default,
+  alter column expected_sales drop default,
+  alter column potential_revenue drop not null,
+  alter column expected_sales drop not null;
+
+create unique index if not exists opportunities_cnpj_unique
+  on public.opportunities (cnpj)
+  where cnpj is not null and btrim(cnpj) <> '';
+
+create table if not exists public.access_allowlist (
+  email text primary key,
+  full_name text,
+  role text not null default 'submitter'
+    check (role in ('admin','collaborator','submitter')),
+  active boolean not null default true,
+  used_at timestamptz,
+  created_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint access_allowlist_email_lower check (email = lower(email))
+);
+
+alter table public.access_allowlist enable row level security;
+
+drop policy if exists "access_allowlist_admin_select" on public.access_allowlist;
+create policy "access_allowlist_admin_select" on public.access_allowlist
+for select to authenticated
+using ((select private.current_user_role()) = 'admin');
+
+drop policy if exists "access_allowlist_admin_insert" on public.access_allowlist;
+create policy "access_allowlist_admin_insert" on public.access_allowlist
+for insert to authenticated
+with check (
+  (select private.current_user_role()) = 'admin'
+  and created_by = (select auth.uid())
+);
+
+drop policy if exists "access_allowlist_admin_update" on public.access_allowlist;
+create policy "access_allowlist_admin_update" on public.access_allowlist
+for update to authenticated
+using ((select private.current_user_role()) = 'admin')
+with check ((select private.current_user_role()) = 'admin');
+
+drop policy if exists "access_allowlist_admin_delete" on public.access_allowlist;
+create policy "access_allowlist_admin_delete" on public.access_allowlist
+for delete to authenticated
+using ((select private.current_user_role()) = 'admin');
+
+grant select, insert, update, delete on public.access_allowlist to authenticated;
+revoke all on public.access_allowlist from anon;
+
+drop trigger if exists access_allowlist_set_updated_at on public.access_allowlist;
+create trigger access_allowlist_set_updated_at
+before update on public.access_allowlist
+for each row execute procedure private.set_updated_at();
+
+insert into public.access_allowlist (email, full_name, role, active, used_at)
+select lower(email), full_name, role, active, now()
+from public.profiles
+where email is not null
+on conflict (email) do update
+set full_name = excluded.full_name,
+    role = excluded.role,
+    active = excluded.active,
+    used_at = coalesce(public.access_allowlist.used_at, excluded.used_at);
+
+create or replace function private.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public, private
+as $$
+declare
+  invite public.access_allowlist%rowtype;
+begin
+  select *
+    into invite
+    from public.access_allowlist
+   where email = lower(new.email)
+     and active = true;
+
+  if invite.email is null then
+    raise exception 'access_not_authorized';
+  end if;
+
+  insert into public.profiles (id, full_name, email, role, active)
+  values (
+    new.id,
+    coalesce(
+      nullif(invite.full_name, ''),
+      nullif(new.raw_user_meta_data ->> 'full_name', ''),
+      split_part(new.email, '@', 1),
+      'Novo usuário'
+    ),
+    new.email,
+    invite.role,
+    true
+  )
+  on conflict (id) do nothing;
+
+  update public.access_allowlist
+     set used_at = now()
+   where email = lower(new.email);
+
+  return new;
+end;
+$$;
+
+revoke all on function private.handle_new_user() from public, anon, authenticated;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure private.handle_new_user();
+
+drop policy if exists "opportunities_insert" on public.opportunities;
+create policy "opportunities_insert" on public.opportunities
+for insert to authenticated
+with check (
+  created_by = (select auth.uid())
+  and (
+    (select private.current_user_role()) in ('admin','collaborator')
+    or (
+      (select private.current_user_role()) = 'submitter'
+      and status = 'Nova'
+      and priority = 'Média'
+      and probability = 10
+      and owner_id is null
+      and next_action is null
+      and next_action_date is null
+      and meeting_date is null
+      and expected_close_date is null
+      and document_link is null
+      and loss_reason is null
+    )
+  )
+);
+
+drop policy if exists "opportunities_update" on public.opportunities;
+create policy "opportunities_update" on public.opportunities
+for update to authenticated
+using (
+  (select private.current_user_role()) in ('admin','collaborator')
+  or (
+    created_by = (select auth.uid())
+    and status = 'Nova'
+    and (select private.current_user_role()) = 'submitter'
+  )
+)
+with check (
+  (select private.current_user_role()) in ('admin','collaborator')
+  or (
+    created_by = (select auth.uid())
+    and status = 'Nova'
+    and priority = 'Média'
+    and probability = 10
+    and owner_id is null
+    and next_action is null
+    and next_action_date is null
+    and meeting_date is null
+    and expected_close_date is null
+    and document_link is null
+    and loss_reason is null
+    and (select private.current_user_role()) = 'submitter'
+  )
+);
