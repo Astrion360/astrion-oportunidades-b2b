@@ -144,3 +144,26 @@ O GitHub Pages publica HTML, CSS e JavaScript diretamente. Guia oficial: [Config
 
 **Astrion Assessoria**  
 Experiência que entende. Estratégia que transforma.
+
+
+## Modelos econômicos
+
+O CRM possui uma camada executiva de modelagem por oportunidade. Ela não substitui o Business Plan completo; serve para padronizar a leitura comercial e econômica no pipeline.
+
+Métricas padronizadas no dashboard:
+- **Produção mensal estimada**: volume de crédito/vendas estimado por mês.
+- **Receita Astrion em 12 meses**: remuneração recorrente estimada em 12 meses + eventual fee/upfront.
+- **Receita ponderada em 12 meses**: receita Astrion em 12 meses × probabilidade comercial.
+
+Biblioteca inicial:
+- Consórcios | Padrão Astrion
+- PagBank | 0,25% recorrente
+- PagBank | 0,20% + fee
+- Sofisa / BIB | Bottom-up
+- Fast Shop | Omnichannel
+- Ouribank | White Label
+- Ouribank | Administradora própria
+- Parceiros | Corretores e distribuição
+- Personalizado
+
+O detalhe do modelo preserva premissas como base, cobertura mensal, FTEs, conversão, ticket médio, taxa de administração, remuneração Astrion, fee, horizonte, CAPEX, OPEX e receitas acessórias. DRE, run-off, VPL, TIR, payback regulatório e sensibilidades permanecem nos BPs específicos.
