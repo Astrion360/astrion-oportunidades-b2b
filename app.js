@@ -1261,7 +1261,7 @@ function economicSummaryTemplate(economic, opportunity) {
     if (!economic) return '<section class="detail-section detail-section--economics"><div class="detail-section__head"><div><span class="eyebrow">Business Plan</span><h3>Ouribank · administradora própria</h3><p>Os indicadores deste projeto são mantidos no BP específico da administradora própria.</p></div></div></section>';
     const model = economicModelFor(economic.model_key);
     return `<section class="detail-section detail-section--economics">
-      <div class="detail-section__head"><div><span class="eyebrow">Business Plan próprio</span><h3>${escapeHTML(model?.name || "Ouribank · administradora própria")}</h3><p>${escapeHTML(economic.notes || model?.description || "")}</p></div><button class="btn btn--ghost btn--small" id="edit-economics" data-id="${opportunity.id}">Editar premissas</button></div>
+      <div class="detail-section__head"><div><span class="eyebrow">Business Plan próprio</span><h3>${escapeHTML(model?.name || "Ouribank · administradora própria")}</h3><p>${escapeHTML(economic.notes || model?.description || "")}</p></div><span class="source-badge source-badge--bp_real">BP próprio</span></div>
       ${economicDirectOutputsTemplate(economic)}
       ${model?.source_note ? `<p class="economic-source"><strong>Referência:</strong> ${escapeHTML(model.source_note)}</p>` : ""}
     </section>`;
@@ -1416,17 +1416,8 @@ async function saveEconomics(event) {
     const { error } = await state.supabase.from("opportunity_economics").upsert(payload, { onConflict: "opportunity_id" });
     if (error) throw error;
     const opportunity = state.opportunities.find(item => item.id === payload.opportunity_id);
-    const out = calculateEconomics(payload, opportunity || {});
-    const summaryChanges = {};
-    if (out.monthlyProduction > 0) summaryChanges.expected_sales = out.monthlyProduction;
-    if (payload.astrion_revenue_rate != null || Number(payload.upfront_fee || 0) > 0) {
-      summaryChanges.potential_revenue = out.monthlyAstrionRevenue * 12 + Number(payload.upfront_fee || 0);
-    }
-    if (Object.keys(summaryChanges).length) {
-      const { error: opportunityError } = await state.supabase.from("opportunities").update(summaryChanges).eq("id", payload.opportunity_id);
-      if (opportunityError) throw opportunityError;
-      await refreshOnlineData();
-    }
+    if (opportunity && !isOuribank(opportunity)) await persistStandardModel(opportunity);
+    await refreshOnlineData();
     closeLayer("economics-modal");
     toast("Modelo econômico atualizado.", "success");
     await openDetail(payload.opportunity_id);
