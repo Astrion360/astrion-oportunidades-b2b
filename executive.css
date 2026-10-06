@@ -134,3 +134,8 @@
 .detail-company-head{display:flex;align-items:center;gap:10px;margin-bottom:13px}
 .detail-company-head>div{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .detail-method{color:var(--ink-500);font-size:8px;text-transform:uppercase;letter-spacing:.07em;font-weight:800}
+
+.methodology-strip--seven{grid-template-columns:repeat(7,minmax(0,1fr))}
+@media(max-width:1250px){.methodology-strip--seven{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:900px){.methodology-strip--seven{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.methodology-strip--seven{grid-template-columns:1fr}}
