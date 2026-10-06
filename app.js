@@ -29,6 +29,7 @@ const state = {
   opportunities: [],
   activities: [],
   history: [],
+  accessAllowlist: [],
   view: "dashboard",
   search: "",
   priority: "",
@@ -68,6 +69,10 @@ const isClosed = opportunity => ["Ganha", "Perdida"].includes(opportunity.status
 const isOverdue = opportunity => opportunity.next_action_date && new Date(opportunity.next_action_date) < new Date() && !isClosed(opportunity);
 const ownerFor = id => state.profiles.find(profile => profile.id === id);
 const ownerName = id => ownerFor(id)?.full_name || (id ? "Usuário" : "A definir");
+const money = value => value === null || value === undefined || value === "" ? "—" : currency.format(Number(value));
+const normalizeCNPJ = value => { const digits = String(value || "").replace(/\\D/g, "").slice(0, 14); return digits.length === 14 ? digits.replace(/^(\\d{2})(\\d{3})(\\d{3})(\\d{4})(\\d{2})$/, "$1.$2.$3/$4-$5") : digits; };
+const safeHttpUrl = value => { if (!value) return null; try { const url = new URL(value); return ["http:", "https:"].includes(url.protocol) ? url.href : null; } catch { return null; } };
+const strongPassword = value => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{12,}$/.test(value);
 
 function demoSeed() {
   const now = new Date();
@@ -117,7 +122,7 @@ async function initialize() {
   const hasConnection = CONFIG.supabaseUrl && CONFIG.supabasePublishableKey && !CONFIG.supabaseUrl.includes("SEU_");
   if (hasConnection) {
     try {
-      const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
+      const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm");
       state.supabase = createClient(CONFIG.supabaseUrl, CONFIG.supabasePublishableKey);
       state.online = true;
 
@@ -142,7 +147,8 @@ async function initialize() {
       }
 
       if (!session) {
-        state.authMode = "login";
+        const inviteMode = queryParams.get("invite") === "1" && queryParams.get("email");
+        state.authMode = inviteMode ? "signup" : "login";
         showAuth();
         renderAuthMode();
         return;
@@ -169,13 +175,16 @@ async function hydrateOnline(user) {
 }
 
 async function refreshOnlineData() {
-  const [opportunitiesResult, profilesResult] = await Promise.all([
+  const queries = [
     state.supabase.from("opportunities").select("*").order("updated_at", { ascending: false }),
     state.supabase.from("profiles").select("*").order("full_name")
-  ]);
+  ];
+  if (roleIsAdmin()) queries.push(state.supabase.from("access_allowlist").select("*").order("created_at", { ascending: false }));
+  const [opportunitiesResult, profilesResult, allowlistResult] = await Promise.all(queries);
   if (opportunitiesResult.error) throw opportunitiesResult.error;
   state.opportunities = opportunitiesResult.data || [];
   state.profiles = profilesResult.error ? [state.profile] : (profilesResult.data || [state.profile]);
+  state.accessAllowlist = allowlistResult?.error ? [] : (allowlistResult?.data || []);
 }
 
 function showAuth() {
@@ -198,8 +207,8 @@ function applyPermissions() {
   $$(".manager-only").forEach(element => element.classList.toggle("permission-hidden", !roleIsManager()));
   $$(".admin-only").forEach(element => element.classList.toggle("permission-hidden", !roleIsAdmin()));
   $$(".manager-fields").forEach(element => element.classList.toggle("permission-hidden", !roleIsManager()));
-  $("#next-action").required = roleIsManager();
-  $("#next-action-date").required = roleIsManager();
+  $("#next-action").required = false;
+  $("#next-action-date").required = false;
 }
 
 function updateIdentity() {
@@ -224,7 +233,7 @@ function populateStaticSelects() {
 
 function filteredOpportunities(extra = {}) {
   return state.opportunities.filter(opportunity => {
-    const haystack = normalize([opportunity.company, opportunity.contact_name, opportunity.summary, opportunity.segment, opportunity.source].join(" "));
+    const haystack = normalize([opportunity.company, opportunity.cnpj, opportunity.contact_name, opportunity.contact_email, opportunity.summary, opportunity.segment, opportunity.source, ...(opportunity.interests || [])].join(" "));
     return (!state.search || haystack.includes(normalize(state.search)))
       && (!state.priority || opportunity.priority === state.priority)
       && (!state.owner || opportunity.owner_id === state.owner)
@@ -263,9 +272,9 @@ function renderDashboard() {
   const inSevenDays = new Date(Date.now() + 7 * 86400000);
   const nextCount = active.filter(opportunity => opportunity.next_action_date && new Date(opportunity.next_action_date) >= new Date() && new Date(opportunity.next_action_date) <= inSevenDays).length;
   const overdue = active.filter(isOverdue);
-  $("#kpi-potential").textContent = compactCurrency.format(potential);
+  $("#kpi-potential").textContent = currency.format(potential);
   $("#kpi-potential-detail").textContent = `${active.length} ${active.length === 1 ? "oportunidade ativa" : "oportunidades ativas"}`;
-  $("#kpi-weighted").textContent = compactCurrency.format(weighted);
+  $("#kpi-weighted").textContent = currency.format(weighted);
   $("#kpi-next").textContent = number.format(nextCount);
   $("#kpi-overdue").textContent = number.format(overdue.length);
 
@@ -274,7 +283,7 @@ function renderDashboard() {
     return { ...meta, count: items.length, totalValue: items.reduce((sum, opportunity) => sum + Number(opportunity.potential_revenue || 0), 0) };
   });
   const max = Math.max(...rows.map(row => row.totalValue), 1);
-  $("#funnel-chart").innerHTML = rows.map(row => `<div class="funnel-row"><span class="funnel-row__label">${row.value}</span><div class="funnel-track"><div class="funnel-fill" style="width:${Math.max(row.totalValue / max * 100, row.count ? 3 : 0)}%"></div></div><span class="funnel-value">${row.count} · ${compactCurrency.format(row.totalValue)}</span></div>`).join("");
+  $("#funnel-chart").innerHTML = rows.map(row => `<div class="funnel-row"><span class="funnel-row__label">${row.value}</span><div class="funnel-track"><div class="funnel-fill" style="width:${Math.max(row.totalValue / max * 100, row.count ? 3 : 0)}%"></div></div><span class="funnel-value">${row.count} · ${currency.format(row.totalValue)}</span></div>`).join("");
 
   const priorities = [
     { label: "Alta", color: "#d92d20", count: active.filter(item => item.priority === "Alta").length },
@@ -311,18 +320,18 @@ function renderPipeline() {
   const items = filteredOpportunities();
   const pipelineStatuses = STATUSES.filter(status => !["Perdida", "Pausada"].includes(status.value));
   const total = items.filter(item => !isClosed(item)).reduce((sum, item) => sum + Number(item.potential_revenue || 0), 0);
-  $("#pipeline-summary").innerHTML = `<span><strong>${items.length}</strong> registros visíveis</span><span>·</span><span><strong>${compactCurrency.format(total)}</strong> em pipeline ativo</span>`;
+  $("#pipeline-summary").innerHTML = `<span><strong>${items.length}</strong> registros visíveis</span><span>·</span><span><strong>${currency.format(total)}</strong> em pipeline ativo</span>`;
   $("#kanban").innerHTML = pipelineStatuses.map(meta => {
     const lane = items.filter(item => item.status === meta.value);
     const laneTotal = lane.reduce((sum, item) => sum + Number(item.potential_revenue || 0), 0);
-    return `<section class="kanban-lane" data-status="${meta.value}" style="--status-color:${meta.color}"><header class="lane-head"><span class="lane-title"><i class="lane-dot"></i>${meta.value}</span><span class="lane-count">${lane.length}</span></header><div class="lane-total">${compactCurrency.format(laneTotal)} em potencial</div><div class="lane-cards">${lane.map(kanbanCardTemplate).join("") || `<div class="empty-state">Nenhuma oportunidade</div>`}</div></section>`;
+    return `<section class="kanban-lane" data-status="${meta.value}" style="--status-color:${meta.color}"><header class="lane-head"><span class="lane-title"><i class="lane-dot"></i>${meta.value}</span><span class="lane-count">${lane.length}</span></header><div class="lane-total">${currency.format(laneTotal)} em potencial</div><div class="lane-cards">${lane.map(kanbanCardTemplate).join("") || `<div class="empty-state">Nenhuma oportunidade</div>`}</div></section>`;
   }).join("");
   bindKanbanDrag();
 }
 
 function kanbanCardTemplate(opportunity) {
   const owner = ownerFor(opportunity.owner_id);
-  return `<article class="kanban-card open-detail" draggable="true" data-id="${opportunity.id}"><div class="kanban-card__top"><span class="company-initial">${initials(opportunity.company)}</span><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><h4>${escapeHTML(opportunity.company)}</h4><span class="contact-line">${escapeHTML(opportunity.contact_name || opportunity.segment || "Contato a confirmar")}</span><p class="summary-line">${escapeHTML(opportunity.summary)}</p><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span><span>${escapeHTML(owner?.full_name || "A definir")}</span></div><div class="kanban-card__meta"><strong>${compactCurrency.format(Number(opportunity.potential_revenue || 0))}</strong><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></div></article>`;
+  return `<article class="kanban-card open-detail" draggable="true" data-id="${opportunity.id}"><div class="kanban-card__top"><span class="company-initial">${initials(opportunity.company)}</span><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><h4>${escapeHTML(opportunity.company)}</h4><span class="contact-line">${escapeHTML(opportunity.contact_name || opportunity.segment || "Contato a confirmar")}</span><p class="summary-line">${escapeHTML(opportunity.summary)}</p><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span><span>${escapeHTML(owner?.full_name || "A definir")}</span></div><div class="kanban-card__meta"><strong>${currency.format(Number(opportunity.potential_revenue || 0))}</strong><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></div></article>`;
 }
 
 function bindKanbanDrag() {
@@ -354,12 +363,12 @@ function renderOpportunityTable() {
 function opportunityRowTemplate(opportunity) {
   const meta = statusMeta(opportunity.status);
   const owner = ownerFor(opportunity.owner_id);
-  return `<tr class="open-detail" data-id="${opportunity.id}"><td><div class="company-cell"><span class="company-initial">${initials(opportunity.company)}</span><div><strong>${escapeHTML(opportunity.company)}</strong><small>${escapeHTML(opportunity.summary)}</small></div></div></td><td><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span></td><td><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></td><td><strong>${compactCurrency.format(Number(opportunity.potential_revenue || 0))}</strong></td><td><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span>${escapeHTML(owner?.full_name || "A definir")}</div></td><td><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></td><td><button class="row-action" aria-label="Abrir oportunidade">→</button></td></tr>`;
+  return `<tr class="open-detail" data-id="${opportunity.id}"><td><div class="company-cell"><span class="company-initial">${initials(opportunity.company)}</span><div><strong>${escapeHTML(opportunity.company)}</strong><small>${escapeHTML(opportunity.summary)}</small></div></div></td><td><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span></td><td><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></td><td><strong>${currency.format(Number(opportunity.potential_revenue || 0))}</strong></td><td><div class="owner-cell"><span class="mini-avatar">${initials(owner?.full_name || "AD")}</span>${escapeHTML(owner?.full_name || "A definir")}</div></td><td><span class="due ${isOverdue(opportunity) ? "overdue" : ""}">${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></td><td><button class="row-action" aria-label="Abrir oportunidade">→</button></td></tr>`;
 }
 
 function mobileOpportunityTemplate(opportunity) {
   const meta = statusMeta(opportunity.status);
-  return `<article class="mobile-record open-detail" data-id="${opportunity.id}"><div class="mobile-record__head"><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><h3>${escapeHTML(opportunity.company)}</h3><p>${escapeHTML(opportunity.summary)}</p><div class="mobile-record__foot"><strong>${compactCurrency.format(Number(opportunity.potential_revenue || 0))}</strong><span>${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></div></article>`;
+  return `<article class="mobile-record open-detail" data-id="${opportunity.id}"><div class="mobile-record__head"><span class="status-pill" style="--status-color:${meta.color}">${opportunity.status}</span><span class="priority priority--${normalize(opportunity.priority)}">${opportunity.priority}</span></div><h3>${escapeHTML(opportunity.company)}</h3><p>${escapeHTML(opportunity.summary)}</p><div class="mobile-record__foot"><strong>${currency.format(Number(opportunity.potential_revenue || 0))}</strong><span>${opportunity.next_action_date ? formatDate(opportunity.next_action_date) : "Sem prazo"}</span></div></article>`;
 }
 
 function calendarEvents() {
