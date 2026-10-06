@@ -16,7 +16,7 @@ const STATUSES = [
 const ACTIVE_STATUSES = STATUSES.filter(s => !["Ganha", "Perdida", "Pausada"].includes(s.value));
 const ROLE_LABELS = { admin: "Administrador", collaborator: "Gestor comercial", submitter: "Cadastrador" };
 const STORAGE_KEY = "astrion_b2b_demo_v1";
-const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0, maximumFractionDigits: 2 });
 const compactCurrency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", notation: "compact", maximumFractionDigits: 1 });
 const number = new Intl.NumberFormat("pt-BR");
 
@@ -70,9 +70,9 @@ const isOverdue = opportunity => opportunity.next_action_date && new Date(opport
 const ownerFor = id => state.profiles.find(profile => profile.id === id);
 const ownerName = id => ownerFor(id)?.full_name || (id ? "Usuário" : "A definir");
 const money = value => value === null || value === undefined || value === "" ? "—" : currency.format(Number(value));
-const normalizeCNPJ = value => { const digits = String(value || "").replace(/\\D/g, "").slice(0, 14); return digits.length === 14 ? digits.replace(/^(\\d{2})(\\d{3})(\\d{3})(\\d{4})(\\d{2})$/, "$1.$2.$3/$4-$5") : digits; };
+const normalizeCNPJ = value => { const digits = String(value || "").replace(/\D/g, "").slice(0, 14); return digits.length === 14 ? digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5") : digits; };
 const safeHttpUrl = value => { if (!value) return null; try { const url = new URL(value); return ["http:", "https:"].includes(url.protocol) ? url.href : null; } catch { return null; } };
-const strongPassword = value => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{12,}$/.test(value);
+const strongPassword = value => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{12,}$/.test(value);
 
 function demoSeed() {
   const now = new Date();
