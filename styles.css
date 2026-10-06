@@ -463,3 +463,17 @@ code { color: var(--blue-600); background: #eef4ff; border-radius: 4px; padding:
 .nav-item.active .nav-icon { background: var(--gold-500); border-color: var(--gold-500); color: var(--navy-950); }
 .eyebrow--light { color: var(--gold-400); }
 .btn--primary { background: linear-gradient(135deg, var(--navy-800), var(--blue-600)); }
+
+/* Ajustes finais para valores completos */
+.funnel-row { grid-template-columns: 120px minmax(0, 1fr) minmax(150px, auto); }
+.funnel-value { white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 980px) {
+  .invite-form { grid-template-columns: 1fr 1fr; }
+  .detail-metrics { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 640px) {
+  .invite-form { grid-template-columns: 1fr; }
+  .detail-metrics { grid-template-columns: 1fr 1fr; }
+  .funnel-row { grid-template-columns: 84px minmax(0, 1fr); }
+  .funnel-value { grid-column: 2; text-align: left; font-size: 8px; }
+}
