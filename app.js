@@ -1,4 +1,5 @@
 const CONFIG = window.ASTRION_CONFIG || {};
+const AUTH_REDIRECT_URL = "https://pipeline.astrion360.com.br/";
 
 const STATUSES = [
   { value: "Nova", color: "#3b75ff", probability: 10 },
@@ -1768,7 +1769,14 @@ async function handleSignup(event) {
   }
   button.disabled = true;
   try {
-    const { data, error } = await state.supabase.auth.signUp({ email: $("#signup-email").value.trim().toLowerCase(), password, options: { data: { full_name: $("#signup-name").value.trim() } } });
+    const { data, error } = await state.supabase.auth.signUp({
+      email: $("#signup-email").value.trim().toLowerCase(),
+      password,
+      options: {
+        data: { full_name: $("#signup-name").value.trim() },
+        emailRedirectTo: AUTH_REDIRECT_URL
+      }
+    });
     if (error) throw error;
     if (data.session) { await hydrateOnline(data.user); startApp(); }
     else {
@@ -1792,8 +1800,7 @@ async function handleForgotPassword() {
   const button = $("#forgot-password");
   button.disabled = true;
   try {
-    const redirectTo = new URL(window.location.pathname, window.location.origin).href;
-    const { error } = await state.supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    const { error } = await state.supabase.auth.resetPasswordForEmail(email, { redirectTo: AUTH_REDIRECT_URL });
     if (error) throw error;
     toast("Enviamos o link de redefinição para o e-mail informado.", "success");
   } catch (error) { handleError(error); }
